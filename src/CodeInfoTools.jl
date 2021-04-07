@@ -7,6 +7,11 @@ import Base: iterate, push!, insert!, replace!, display
 
 resolve(x) = x
 resolve(x::GlobalRef) = getproperty(x.mod, x.name)
+resolve(x::Expr) = Expr(x.head, map(resolve, x.args)...)
+resolve(x::Core.NewvarNode) = x
+resolve(x::Core.GotoIfNot) = Core.GotoIfNot(resolve(x.cond), resolve(x.dest))
+resolve(x::Core.SlotNumber) = x
+resolve(x::Core.ReturnNode) = Core.ReturnNode(resolve(x.val))
 
 #####
 ##### Builder
@@ -37,16 +42,16 @@ end
 
 function Base.getindex(b::Builder, i::Int)
     @assert(i <= length(b.code))
-    getindex(b.code, i)
+    return getindex(b.code, i)
 end
 
-function iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
-  i <= length(ks) || return
-  return (ks[i]=>b[i], (ks, i+1))
+function iterate(b::Builder, (ks, i)=(1:length(b.code), 1))
+    i <= length(ks) || return
+    return (ks[i] => b[i], (ks, i + 1))
 end
 
-function code_info(f, tt; generated = true, debuginfo=:default)
-    ir = code_lowered(f, tt; generated = generated, debuginfo=:default)
+function code_info(f, tt; generated=true, debuginfo=:default)
+    ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
     isempty(ir) && return nothing
     return ir[1], Builder(ir[1], length(tt.parameters))
 end
@@ -57,13 +62,13 @@ function insert!(b::Builder, v::Int, slot::Core.SlotNumber)
     ci.newslots[v] = slot.id
     insert!(ci.slotnames, v, slot.id)
     prev = length(filter(x -> x < v, keys(ci.newslots)))
-    for k in v-prev:length(ci.slotmap)
+    for k in (v - prev):length(ci.slotmap)
         ci.slotmap[k] += 1
     end
     return ci
 end
 
-function push!(b::Builder, stmt, codeloc::Int32 = Int32(1))
+function push!(b::Builder, stmt, codeloc::Int32=Int32(1))
     push!(b.code, stmt)
     push!(b.codelocs, codeloc)
     return b
@@ -84,17 +89,14 @@ end
 function update_slots(e, slotmap)
     e isa Core.SlotNumber && return Core.SlotNumber(e.id + slotmap[e.id])
     e isa Expr && return Expr(e.head, map(x -> update_slots(x, slotmap), e.args)...)
-    e isa Core.NewvarNode && return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
+    e isa Core.NewvarNode &&
+        return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
     return e
 end
 
 function prepare_builder!(b::Builder)
     for (v, st) in enumerate(b.ref.code)
-        if st isa Expr
-            push!(b, Expr(st.head, map(resolve, st.args)...))
-        else
-            push!(b, st)
-        end
+        push!(b, resolve(st))
     end
     return b
 end
@@ -109,11 +111,16 @@ function _replace_new_ssavalue(e)
         end
         return Core.GotoIfNot(cond, e.dest)
     end
-    e isa Core.ReturnNode && isdefined(e, :val) && isa(e.val, NewSSAValue) && return Core.ReturnNode(SSAValue(e.val.id))
+    e isa Core.ReturnNode &&
+        isdefined(e, :val) &&
+        isa(e.val, NewSSAValue) &&
+        return Core.ReturnNode(SSAValue(e.val.id))
     return e
 end
 
-replace_new_ssavalue(code::Vector) = [_replace_new_ssavalue(code[idx]) for idx in 1 : length(code)]
+function replace_new_ssavalue(code::Vector)
+    return [_replace_new_ssavalue(code[idx]) for idx in 1:length(code)]
+end
 
 function finish(b::Builder)
     renumber_ir_elements!(b.code, b.changemap)
