@@ -3,7 +3,10 @@ module CodeInfoTools
 using Core: CodeInfo, Slot
 using Core.Compiler: NewSSAValue, renumber_ir_elements!
 
-import Base: push!, insert!, display
+import Base: iterate, push!, insert!, replace!, display
+
+resolve(x) = x
+resolve(x::GlobalRef) = getproperty(x.mod, x.name)
 
 #####
 ##### Builder
@@ -26,8 +29,20 @@ struct Builder
         slotnames = copy(ci.slotnames)
         changemap = fill(0, length(ci.code))
         slotmap = fill(0, length(ci.slotnames))
-        new(ci, code, nargs + 1, codelocs, newslots, slotnames, changemap, slotmap)
+        b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, changemap, slotmap)
+        prepare_builder!(b)
+        return b
     end
+end
+
+function Base.getindex(b::Builder, i::Int)
+    @assert(i <= length(b.code))
+    getindex(b.code, i)
+end
+
+function iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
+  i <= length(ks) || return
+  return (ks[i]=>b[i], (ks, i+1))
 end
 
 function code_info(f, tt; generated = true, debuginfo=:default)
@@ -60,6 +75,12 @@ function insert!(b::Builder, v::Int, stmt)
     return NewSSAValue(length(b.code))
 end
 
+function Base.replace!(b::Builder, v::Int, stmt)
+    @assert(v <= length(b.ref.codelocs))
+    b.code[v] = stmt
+    return NewSSAValue(v + 1)
+end
+
 function update_slots(e, slotmap)
     e isa Core.SlotNumber && return Core.SlotNumber(e.id + slotmap[e.id])
     e isa Expr && return Expr(e.head, map(x -> update_slots(x, slotmap), e.args)...)
@@ -67,11 +88,15 @@ function update_slots(e, slotmap)
     return e
 end
 
-function transform(b::Builder)
+function prepare_builder!(b::Builder)
     for (v, st) in enumerate(b.ref.code)
-        push!(b, st)
+        if st isa Expr
+            push!(b, Expr(st.head, map(resolve, st.args)...))
+        else
+            push!(b, st)
+        end
     end
-    return finish(b)
+    return b
 end
 
 function _replace_new_ssavalue(e)
@@ -110,6 +135,6 @@ Base.display(b::Builder) = display(finish(b))
 ##### Exports
 #####
 
-export code_info
+export code_info, Builder, finish
 
 end # module
