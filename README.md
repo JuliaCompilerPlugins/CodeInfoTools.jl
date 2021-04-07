@@ -116,7 +116,7 @@ display(ir)
 display(transform(b))
 ```
 
-Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `b`. You can now safely iterate over this object, perform local changes with `replace!`, press `finish` and - (la di da!) - out comes a new `CodeInfo` with your changes fresh.
+Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `b`. You can now safely iterate over this object, perform local changes with `replace!`, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
 
 ```julia
 # Before:
