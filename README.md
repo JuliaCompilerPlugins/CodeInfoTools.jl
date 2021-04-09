@@ -6,7 +6,6 @@
 [build-url]: https://github.com/femtomc/CodeInfoTools.jl/actions
 [codecov-img]: https://codecov.io/github/femtomc/CodeInfoTools.jl/badge.svg?branch=main
 [codecov-url]: https://codecov.io/github/femtomc/CodeInfoTools.jl?branch=main
-
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://femtomc.github.io/CodeInfoTools.jl/stable)
 
 ```
