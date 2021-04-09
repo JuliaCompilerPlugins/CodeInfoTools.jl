@@ -27,7 +27,7 @@ struct Builder
     changemap::Vector{Int}
     slotmap::Vector{Int}
 
-    function Builder(ci::CodeInfo, nargs::Int; prepare = true)
+    function Builder(ci::CodeInfo, nargs::Int; prepare=true)
         code = []
         codelocs = Int32[]
         newslots = Dict{Int,Symbol}()
@@ -58,30 +58,43 @@ end
 
 slot(b::Builder, name::Symbol) = Core.SlotNumber(findfirst(isequal(name), ci.slotnames))
 
-_circshift_swap(st, deg, v; ch = r -> true) = st
-_circshift_swap(st::Core.SlotNumber, deg, v::Val{true}; ch = r -> true) = Core.SlotNumber(st.id + deg)
-_circshift_swap(st::Core.SlotNumber, deg, v::Val{false}; ch = r -> true) = st
-_circshift_swap(st::Core.SSAValue, deg, v::Val{true}; ch = r -> true) = st
-_circshift_swap(st::Core.SSAValue, deg, v::Val{false}; ch = r -> true) = ch(st.id) ? Core.SSAValue(st.id + deg) : st
-_circshift_swap(st::Core.GotoNode, deg, v; ch = r -> true) = Core.GotoNode(_circshift_swap(st.label, deg, v; ch = ch))
-_circshift_swap(st::Core.GotoIfNot, deg, v; ch = r -> true) = Core.GotoIfNot(_circshift_swap(st.cond, deg, v; ch = ch), _circshift_swap(st.dest, deg, v; ch = ch))
-_circshift_swap(st::Core.ReturnNode, deg, v; ch = r -> true) = Core.ReturnNode(_circshift_swap(st.val, deg, v; ch = ch))
-_circshift_swap(st::Expr, deg, v; ch = r -> true) = Expr(st.head, map(e -> _circshift_swap(e, deg, v; ch = ch), st.args)...)
-function circshift!(b::Builder, deg::Int; ch = r -> true, slots::Bool = false)
+_circshift_swap(st, deg, v; ch=r -> true) = st
+function _circshift_swap(st::Core.SlotNumber, deg, v::Val{true}; ch=r -> true)
+    return Core.SlotNumber(st.id + deg)
+end
+_circshift_swap(st::Core.SlotNumber, deg, v::Val{false}; ch=r -> true) = st
+_circshift_swap(st::Core.SSAValue, deg, v::Val{true}; ch=r -> true) = st
+function _circshift_swap(st::Core.SSAValue, deg, v::Val{false}; ch=r -> true)
+    return ch(st.id) ? Core.SSAValue(st.id + deg) : st
+end
+function _circshift_swap(st::Core.GotoNode, deg, v; ch=r -> true)
+    return Core.GotoNode(_circshift_swap(st.label, deg, v; ch=ch))
+end
+function _circshift_swap(st::Core.GotoIfNot, deg, v; ch=r -> true)
+    return Core.GotoIfNot(_circshift_swap(st.cond, deg, v; ch=ch),
+                          _circshift_swap(st.dest, deg, v; ch=ch))
+end
+function _circshift_swap(st::Core.ReturnNode, deg, v; ch=r -> true)
+    return Core.ReturnNode(_circshift_swap(st.val, deg, v; ch=ch))
+end
+function _circshift_swap(st::Expr, deg, v; ch=r -> true)
+    return Expr(st.head, map(e -> _circshift_swap(e, deg, v; ch=ch), st.args)...)
+end
+function circshift!(b::Builder, deg::Int; ch=r -> true, slots::Bool=false)
     for (v, st) in b
-        replace!(b, v, _circshift_swap(st, deg, Val(slots); ch = ch))
+        replace!(b, v, _circshift_swap(st, deg, Val(slots); ch=ch))
     end
 end
 
-function bump!(b::Builder, v::Int; slots = false)
+function bump!(b::Builder, v::Int; slots=false)
     ch = l -> l >= v
     for (v, st) in b
-        replace!(b, v, _circshift_swap(st, 1, Val(slots); ch = ch))
+        replace!(b, v, _circshift_swap(st, 1, Val(slots); ch=ch))
     end
 end
 
 function pushslot!(b::Builder, slot::Symbol)
-    circshift!(b, 1; slots = false)
+    circshift!(b, 1; slots=false)
     b.newslots[length(b.slotnames) + 1] = slot
     push!(b.slotnames, slot)
     new = Core.SlotNumber(length(b.slotnames))
@@ -110,8 +123,7 @@ function insert!(b::Builder, v::Int, stmt)
     return NewSSAValue(length(b.code))
 end
 
-function delete!(b::Builder, v::Int)
-end
+function delete!(b::Builder, v::Int) end
 
 function replace!(b::Builder, v::Int, stmt)
     @assert(v <= length(b.codelocs))
@@ -123,7 +135,7 @@ function update_slots(e, slotmap)
     e isa Core.SlotNumber && return Core.SlotNumber(e.id + slotmap[e.id])
     e isa Expr && return Expr(e.head, map(x -> update_slots(x, slotmap), e.args)...)
     e isa Core.NewvarNode &&
-    return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
+        return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
     return e
 end
 
@@ -145,9 +157,9 @@ function _replace_new_ssavalue(e)
         return Core.GotoIfNot(cond, e.dest)
     end
     e isa Core.ReturnNode &&
-    isdefined(e, :val) &&
-    isa(e.val, NewSSAValue) &&
-    return Core.ReturnNode(SSAValue(e.val.id))
+        isdefined(e, :val) &&
+        isa(e.val, NewSSAValue) &&
+        return Core.ReturnNode(SSAValue(e.val.id))
     return e
 end
 
