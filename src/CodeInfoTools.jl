@@ -2,7 +2,6 @@ module CodeInfoTools
 
 using Core: CodeInfo, Slot
 using Core.Compiler: NewSSAValue, renumber_ir_elements!
-using MacroTools: postwalk, @capture
 
 import Base: iterate, circshift!, push!, pushfirst!, insert!, replace!, display, delete!
 

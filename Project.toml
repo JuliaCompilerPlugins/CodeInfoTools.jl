@@ -4,4 +4,10 @@ authors = ["McCoy R. Becker <mccoyb@mit.edu>, Xiu-Zhe (Roger) Luo <rogerluo.rl18
 version = "0.1.0"
 
 [deps]
-MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+julia = "1.6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
