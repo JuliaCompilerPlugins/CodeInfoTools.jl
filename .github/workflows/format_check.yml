@@ -2,7 +2,6 @@ name: format-check
 on:
   push:
     branches:
-      - 'main'
       - 'master'
       - /^release-.*$/
     tags: '*'
