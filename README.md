@@ -1,12 +1,11 @@
 # CodeInfoTools.jl
 
-[![Build Status][build-img]][build-url] [![CodeCov][codecov-img]][codecov-url]
+[![Build Status][build-img]][build-url] [![CodeCov][codecov-img]][codecov-url] [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://femtomc.github.io/CodeInfoTools.jl/stable)
 
 [build-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/CI/badge.svg
 [build-url]: https://github.com/femtomc/CodeInfoTools.jl/actions
 [codecov-img]: https://codecov.io/github/femtomc/CodeInfoTools.jl/badge.svg?branch=main
 [codecov-url]: https://codecov.io/github/femtomc/CodeInfoTools.jl?branch=main
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://femtomc.github.io/CodeInfoTools.jl/stable)
 
 ```
 ] add CodeInfoTools
