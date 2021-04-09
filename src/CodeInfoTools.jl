@@ -2,8 +2,9 @@ module CodeInfoTools
 
 using Core: CodeInfo, Slot
 using Core.Compiler: NewSSAValue, renumber_ir_elements!
+using MacroTools: postwalk, @capture
 
-import Base: iterate, push!, insert!, replace!, display
+import Base: iterate, circshift!, push!, pushfirst!, insert!, replace!, display
 
 resolve(x) = x
 resolve(x::GlobalRef) = getproperty(x.mod, x.name)
@@ -58,19 +59,37 @@ end
 
 slot(b::Builder, name::Symbol) = Core.SlotNumber(findfirst(isequal(name), ci.slotnames))
 
-function insert!(b::Builder, v::Int, slot::Core.SlotNumber)
-    ci.newslots[v] = slot.id
-    insert!(ci.slotnames, v, slot.id)
-    prev = length(filter(x -> x < v, keys(ci.newslots)))
-    for k in (v - prev):length(ci.slotmap)
-        ci.slotmap[k] += 1
+_circshift_swap(st, deg; ch = r -> true) = st
+_circshift_swap(st::Core.SSAValue, deg; ch = r -> true) = ch(st.id) ? Core.SSAValue(st.id + deg) : st
+_circshift_swap(st::Core.GotoNode, deg; ch = r -> true) = Core.GotoNode(_circshift_swap(st.label, deg; ch = ch))
+_circshift_swap(st::Core.GotoIfNot, deg; ch = r -> true) = Core.GotoIfNot(_circshift_swap(st.cond, deg; ch = ch), _circshift_swap(st.dest, deg; ch = ch))
+_circshift_swap(st::Core.ReturnNode, deg; ch = r -> true) = Core.ReturnNode(_circshift_swap(st.val, deg; ch = ch))
+_circshift_swap(st::Expr, deg; ch = r -> true) = Expr(st.head, map(e -> _circshift_swap(e, deg; ch = ch), st.args)...)
+function circshift!(b::Builder, deg::Int; ch = r -> true)
+    for (v, st) in b
+        replace!(b, v, _circshift_swap(st, deg; ch = ch))
     end
-    return ci
+end
+
+function insert!(b::Builder, v::Int, slot::Symbol)
+    b.newslots[v] = slot
+    insert!(b.slotnames, v, slot)
+    prev = length(filter(x -> x < v, keys(b.newslots)))
+    for k in (v - prev):length(b.slotmap)
+        b.slotmap[k] += 1
+    end
+    return b
 end
 
 function push!(b::Builder, stmt, codeloc::Int32=Int32(1))
     push!(b.code, stmt)
     push!(b.codelocs, codeloc)
+    return b
+end
+
+function pushfirst!(b::Builder, stmt, codeloc::Int32=Int32(1))
+    pushfirst!(b.code, stmt)
+    pushfirst!(b.codelocs, codeloc)
     return b
 end
 
@@ -81,7 +100,7 @@ function insert!(b::Builder, v::Int, stmt)
 end
 
 function Base.replace!(b::Builder, v::Int, stmt)
-    @assert(v <= length(b.ref.codelocs))
+    @assert(v <= length(b.codelocs))
     b.code[v] = stmt
     return NewSSAValue(v + 1)
 end
