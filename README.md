@@ -17,7 +17,7 @@
 
 Working with untyped `CodeInfo` is often not fun. E.g. when examining the untyped expansion of the [Rosenbrock function](https://en.wikipedia.org/wiki/Rosenbrock_function)
 
-```julia
+```
 CodeInfo(
     @ /Users/mccoybecker/dev/Mixtape.jl/examples/simple.jl:7 within `rosenbrock'
 1 ─       a = 1.0
@@ -129,7 +129,7 @@ display(transform(b))
 
 Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `b`. You can now safely iterate over this object, perform local changes with `replace!`, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
 
-```julia
+```
 # Before:
 CodeInfo(
 1 ─      Core.NewvarNode(:(n))
