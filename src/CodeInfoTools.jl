@@ -42,6 +42,7 @@ end
 
 @doc(
 """
+```julia
 struct Builder
     ref::CodeInfo
     code::Vector{Any}
@@ -54,6 +55,7 @@ struct Builder
 end
 
 Builder(ci::CodeInfo, nargs::Int; prepare=true)
+```
 
 An immutable wrapper around `CodeInfo` which allows a user to insert statements, change SSA values, insert `Core.SlotNumber` instances, etc -- without effecting the wrapped `CodeInfo` instance. Call `finish(b::Builder)` to produce a finished instance of `CodeInfo`.
 """, Builder)
@@ -65,7 +67,9 @@ end
 
 @doc(
 """
+```julia
     getindex(b::Builder, i::int)
+```
 
 Return the expression/node at index `i` from the `Vector{Any}` of lowered code statements.
 """, getindex)
@@ -77,7 +81,9 @@ end
 
 @doc(
 """
+```julia
     iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
+```
 
 Iterate over the builder -- generating a tuple (k, stmt) at each iteration step, where `k` is an index and `stmt` is a node or `Expr` instance.
 """, iterate)
@@ -90,7 +96,9 @@ end
 
 @doc(
 """
+```julia
     code_info(f, tt; generate = true, debuginfo = :default)
+```
 
 Return lowered code for function `f` with tuple type `tt`.
 """, code_info)
@@ -127,7 +135,9 @@ end
 
 @doc(
 """
+```julia
     circshift!(b::Builder, deg::Int; ch = r -> true, slots::Bool = false)
+```
 
 Shift either the SSA values (slots = false) or the `Core.SlotNumber` instances (slots = true) selected by `ch` by `deg`.
 """, circshift!)
@@ -141,7 +151,9 @@ end
 
 @doc(
 """
+```julia
     bump!(b::Builder, v::Int; slots = false)
+```
 
 Increase either the SSA values (slots = false) or the `Core.SlotNumber` instances for which `id >= v` by 1.
 """, bump!)
@@ -157,7 +169,9 @@ end
 
 @doc(
 """
+```julia
     pushslot!(b::Builder, slot::Symbol)
+```
 
 Insert a new slot into the IR with name `slot`. Increments all SSA value instances to preserve the correct ordering.
 """, pushslot!)
@@ -177,7 +191,9 @@ end
 
 @doc(
 """
+```julia
     pushfirst!(b::Builder, stmt)
+```
 
 Push a statement to the head of `b.code`. This call first shifts all SSA values up by 1 to preserve ordering.
 """, pushfirst!)
@@ -192,7 +208,9 @@ end
 
 @doc(
 """
+```julia
     insert!(b::Builder, v::Int, stmt)
+```
 
 Insert an `Expr` or node `stmt` at location `v` in `b.code`. Shifts all SSA values with `id >= v` to preserve order.
 """, insert!)
@@ -205,7 +223,9 @@ end
 
 @doc(
 """
+```julia
     replace!(b::Builder, v::Int, stmt)
+```
 
 Replace the `Expr` or node at location `v` with stmt.
 """, replace!)
@@ -227,7 +247,9 @@ end
 
 @doc(
 """
+```julia
     prepare_builder!(b::Builder)
+```
 
 Iterate over the reference `CodeInfo` instance in `b.ref` -- pushing `Expr` instances and nodes onto the builder `b`. This function is called during `Builder` construction so that the user is presented with a copy of the `CodeInfo` in `b.ref`.
 """, prepare_builder!)
@@ -269,7 +291,9 @@ end
 
 @doc(
 """
+```julia
     finish(b::Builder)
+```
 
 Produce a new `CodeInfo` instance from a `Builder` instance `b`.
 """, finish)
