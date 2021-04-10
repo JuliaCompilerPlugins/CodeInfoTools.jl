@@ -3,7 +3,7 @@ module CodeInfoTools
 using Core: CodeInfo, Slot
 using Core.Compiler: NewSSAValue, renumber_ir_elements!
 
-import Base: iterate, circshift!, push!, pushfirst!, insert!, replace!, display, delete!
+import Base: iterate, circshift!, push!, pushfirst!, insert!, replace!, display, delete!, getindex
 
 resolve(x) = x
 resolve(x::GlobalRef) = getproperty(x.mod, x.name)
@@ -40,21 +40,60 @@ struct Builder
     end
 end
 
-function Base.getindex(b::Builder, i::Int)
+@doc(
+"""
+struct Builder
+    ref::CodeInfo
+    code::Vector{Any}
+    nargs::Int32
+    codelocs::Vector{Int32}
+    newslots::Dict{Int,Symbol}
+    slotnames::Vector{Symbol}
+    changemap::Vector{Int}
+    slotmap::Vector{Int}
+end
+
+Builder(ci::CodeInfo, nargs::Int; prepare=true)
+
+An immutable wrapper around `CodeInfo` which allows a user to insert statements, change SSA values, insert `Core.SlotNumber` instances, etc -- without effecting the wrapped `CodeInfo` instance. Call `finish(b::Builder)` to produce a finished instance of `CodeInfo`.
+""", Builder)
+
+function getindex(b::Builder, i::Int)
     @assert(i <= length(b.code))
     return getindex(b.code, i)
 end
+
+@doc(
+"""
+    getindex(b::Builder, i::int)
+
+Return the expression/node at index `i` from the `Vector{Any}` of lowered code statements.
+""", getindex)
 
 function iterate(b::Builder, (ks, i)=(1:length(b.code), 1))
     i <= length(ks) || return
     return (ks[i] => b[i], (ks, i + 1))
 end
 
+@doc(
+"""
+    iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
+
+Iterate over the builder -- generating a tuple (k, stmt) at each iteration step, where `k` is an index and `stmt` is a node or `Expr` instance.
+""", iterate)
+
 function code_info(f, tt; generated=true, debuginfo=:default)
     ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
     isempty(ir) && return nothing
     return ir[1], Builder(ir[1], length(tt.parameters))
 end
+
+@doc(
+"""
+    code_info(f, tt; generate = true, debuginfo = :default)
+
+Return lowered code for function `f` with tuple type `tt`.
+""", code_info)
 
 slot(b::Builder, name::Symbol) = Core.SlotNumber(findfirst(isequal(name), ci.slotnames))
 
@@ -86,12 +125,26 @@ function circshift!(b::Builder, deg::Int; ch=r -> true, slots::Bool=false)
     end
 end
 
+@doc(
+"""
+    circshift!(b::Builder, deg::Int; ch = r -> true, slots::Bool = false)
+
+Shift either the SSA values (slots = false) or the `Core.SlotNumber` instances (slots = true) selected by `ch` by `deg`.
+""", circshift!)
+
 function bump!(b::Builder, v::Int; slots=false)
     ch = l -> l >= v
     for (v, st) in b
         replace!(b, v, _circshift_swap(st, 1, Val(slots); ch=ch))
     end
 end
+
+@doc(
+"""
+    bump!(b::Builder, v::Int; slots = false)
+
+Increase either the SSA values (slots = false) or the `Core.SlotNumber` instances for which `id >= v` by 1.
+""", bump!)
 
 function pushslot!(b::Builder, slot::Symbol)
     circshift!(b, 1; slots=false)
@@ -101,6 +154,13 @@ function pushslot!(b::Builder, slot::Symbol)
     pushfirst!(b, Core.NewvarNode(new))
     return new
 end
+
+@doc(
+"""
+    pushslot!(b::Builder, slot::Symbol)
+
+Insert a new slot into the IR with name `slot`. Increments all SSA value instances to preserve the correct ordering.
+""", pushslot!)
 
 function push!(b::Builder, stmt, codeloc::Int32=Int32(1))
     push!(b.code, stmt)
@@ -115,6 +175,13 @@ function pushfirst!(b::Builder, stmt)
     return b
 end
 
+@doc(
+"""
+    pushfirst!(b::Builder, stmt)
+
+Push a statement to the head of `b.code`. This call first shifts all SSA values up by 1 to preserve ordering.
+""", pushfirst!)
+
 function insert!(b::Builder, v::Int, stmt)
     bump!(b, v)
     insert!(b.code, v, stmt)
@@ -123,13 +190,25 @@ function insert!(b::Builder, v::Int, stmt)
     return NewSSAValue(length(b.code))
 end
 
-function delete!(b::Builder, v::Int) end
+@doc(
+"""
+    insert!(b::Builder, v::Int, stmt)
+
+Insert an `Expr` or node `stmt` at location `v` in `b.code`. Shifts all SSA values with `id >= v` to preserve order.
+""", insert!)
 
 function replace!(b::Builder, v::Int, stmt)
     @assert(v <= length(b.codelocs))
     b.code[v] = stmt
     return NewSSAValue(v + 1)
 end
+
+@doc(
+"""
+    replace!(b::Builder, v::Int, stmt)
+
+Replace the `Expr` or node at location `v` with stmt.
+""", replace!)
 
 function update_slots(e, slotmap)
     e isa Core.SlotNumber && return Core.SlotNumber(e.id + slotmap[e.id])
@@ -145,6 +224,13 @@ function prepare_builder!(b::Builder)
     end
     return b
 end
+
+@doc(
+"""
+    prepare_builder!(b::Builder)
+
+Iterate over the reference `CodeInfo` instance in `b.ref` -- pushing `Expr` instances and nodes onto the builder `b`. This function is called during `Builder` construction so that the user is presented with a copy of the `CodeInfo` in `b.ref`.
+""", prepare_builder!)
 
 function _replace_new_ssavalue(e)
     e isa NewSSAValue && return SSAValue(e.id)
@@ -180,6 +266,13 @@ function finish(b::Builder)
     new_ci.ssavaluetypes = length(b.code)
     return new_ci
 end
+
+@doc(
+"""
+    finish(b::Builder)
+
+Produce a new `CodeInfo` instance from a `Builder` instance `b`.
+""", finish)
 
 Base.display(b::Builder) = display(finish(b))
 
