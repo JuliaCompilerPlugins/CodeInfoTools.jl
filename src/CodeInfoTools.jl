@@ -57,7 +57,9 @@ end
 Builder(ci::CodeInfo, nargs::Int; prepare=true)
 ```
 
-An immutable wrapper around `CodeInfo` which allows a user to insert statements, change SSA values, insert `Core.SlotNumber` instances, etc -- without effecting the wrapped `CodeInfo` instance. Call `finish(b::Builder)` to produce a finished instance of `CodeInfo`.
+An immutable wrapper around `CodeInfo` which allows a user to insert statements, change SSA values, insert `Core.SlotNumber` instances, etc -- without effecting the wrapped `CodeInfo` instance. 
+
+Call `finish(b::Builder)` to produce a modified instance of `CodeInfo`.
 """, Builder)
 
 function getindex(b::Builder, i::Int)
