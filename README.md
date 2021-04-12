@@ -86,14 +86,14 @@ struct Builder
     slotnames::Vector{Symbol}
     slotmap::Vector{Int}
 
-    function Builder(ci::CodeInfo, nargs::Int)
+    function Builder(ci::CodeInfo, nargs::Int; prepare=true)
         code = []
         codelocs = Int32[]
-        newslots = Dict{Int,Symbol}()
+        newslots = Dict{Int, Symbol}()
         slotnames = copy(ci.slotnames)
         slotmap = fill(0, length(ci.slotnames))
         b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, slotmap)
-        prepare_builder!(b)
+        prepare && prepare_builder!(b)
         return b
     end
 end
