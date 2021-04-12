@@ -29,6 +29,7 @@ end
     @test ir != nothing
     ir, b = code_info(g, Tuple{Int})
     @test ir != nothing
+    display(b)
 end
 
 @testset "iterate" begin
