@@ -84,7 +84,6 @@ struct Builder
     codelocs::Vector{Int32}
     newslots::Dict{Int,Symbol}
     slotnames::Vector{Symbol}
-    changemap::Vector{Int}
     slotmap::Vector{Int}
 
     function Builder(ci::CodeInfo, nargs::Int)
@@ -92,9 +91,8 @@ struct Builder
         codelocs = Int32[]
         newslots = Dict{Int,Symbol}()
         slotnames = copy(ci.slotnames)
-        changemap = fill(0, length(ci.code))
         slotmap = fill(0, length(ci.slotnames))
-        b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, changemap, slotmap)
+        b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, slotmap)
         prepare_builder!(b)
         return b
     end
@@ -150,7 +148,6 @@ CodeInfo(
 
 # After:
 CodeInfo(
-    @ /Users/mccoybecker/.julia/dev/CodeInfoTools/examples/simple.jl:6 within `f'
 1 ─      Core.NewvarNode(:(n))
 │        z = 10
 │   %3 = (>)(z, 10)
