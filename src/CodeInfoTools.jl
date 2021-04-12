@@ -79,9 +79,10 @@ end
 
 @doc(
 """
-    getindex(b::Builder, i::int)
+    getindex(b::Builder, i::Int)
+    getindex(b::Builder, i::Core.SSAValue)
 
-Return the expression/node at index `i` from the `Vector{Any}` of lowered code statements.
+Return the expression/node at index `i` from the `Vector` of lowered code statements.
 """, getindex)
 
 function iterate(b::Builder, (ks, i)=(1:length(b.code), 1))
@@ -93,7 +94,7 @@ end
 """
     iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
 
-Iterate over the builder -- generating a tuple (k, stmt) at each iteration step, where `k` is an index and `stmt` is a node or `Expr` instance.
+Iterate over the builder -- generating a tuple (Core.SSAValue(k), stmt) at each iteration step, where `k` is an index and `stmt` is a node or `Expr` instance.
 """, iterate)
 
 function code_info(f, tt; generated=true, debuginfo=:default)
@@ -106,7 +107,7 @@ end
 """
     code_info(f, tt; generate = true, debuginfo = :default)
 
-Return lowered code for function `f` with tuple type `tt`.
+Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
 """, code_info)
 
 slot(b::Builder, name::Symbol) = Core.SlotNumber(findfirst(isequal(name), b.slotnames))
@@ -130,13 +131,20 @@ end
 """
     circshift!(b::Builder, deg::Int; ch = r -> true, slots::Bool = false)
 
-Shift either the SSA values (slots = false) or the `Core.SlotNumber` instances (slots = true) selected by `ch` by `deg`.
+Shift either SSA values (`slots = false`) or the `Core.SlotNumber` instances (`slots = true`) by `deg`. The Boolean function `ch` determines which subset of values are shifted and can be customized by the user.
 """, circshift!)
 
 function bump!(b::Builder, v::Int; slots=false)
     ch = l -> l >= v
     circshift!(b, 1; ch = ch, slots = slots)
 end
+
+@doc(
+"""
+    bump!(b::Builder, v::Int; slots = false)
+
+Subsets all instances of `Core.SSAValue` or `Core.SlotNumber` greater than `v` and shifts them up by 1. Convenience form of `circshift!`.
+""", bump!)
 
 function slump!(b::Builder, v::Int; slots=false)
     ch = l -> l >= v
@@ -145,10 +153,10 @@ end
 
 @doc(
 """
-    bump!(b::Builder, v::Int; slots = false)
+    slump!(b::Builder, v::Int; slots = false)
 
-Increase either the SSA values (slots = false) or the `Core.SlotNumber` instances for which `id >= v` by 1.
-""", bump!)
+Subsets all instances of `Core.SSAValue` or `Core.SlotNumber` greater than `v` and shifts them down by 1. Convenience form of `circshift!`.
+""", slump!)
 
 function pushslot!(b::Builder, slot::Symbol)
     b.newslots[length(b.slotnames) + 1] = slot
@@ -170,6 +178,13 @@ function push!(b::Builder, stmt)
     push!(b.codelocs, Int32(0))
     return b
 end
+
+@doc(
+"""
+    push!(b::Builder, stmt)
+
+Push a statement to the end of `b.code`.
+""", push!)
 
 function pushfirst!(b::Builder, stmt)
     circshift!(b, 1)
@@ -202,6 +217,7 @@ end
 @doc(
 """
     insert!(b::Builder, v::Int, stmt)
+    insert!(b::Builder, v::Core.SSAValue, stmt)
 
 Insert an `Expr` or node `stmt` at location `v` in `b.code`. Shifts all SSA values with `id >= v` to preserve order.
 """, insert!)
@@ -239,6 +255,14 @@ end
 function deleteat!(b::Builder, v::Core.SSAValue)
     return deleteat!(b, v.id)
 end
+
+@doc(
+"""
+    deleteat!(b::Builder, v::Int)
+    deleteat!(b::Builder, v::Core.SSAValue)
+
+Delete the expression or node at location `v`. If `v` indexes a `Core.NewvarNode` (which indicates a slot), the slotname is also removed from `b.slotnames`. All SSA values and slots are shifted down accordingly.
+""", deleteat!)
 
 function prepare_builder!(b::Builder)
     for (v, st) in enumerate(b.ref.code)

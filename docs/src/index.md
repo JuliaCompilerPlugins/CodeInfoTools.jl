@@ -7,16 +7,19 @@ CurrentModule = CodeInfoTools
 ```
 
 ```@docs
+code_info
 Builder
+prepare_builder!
 getindex
 iterate
-code_info
 circshift!
 bump!
-pushslot!
+slump!
+push!
 pushfirst!
 insert!
 replace!
-prepare_builder!
+deleteat!
+pushslot!
 finish
 ```
