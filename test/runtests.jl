@@ -10,12 +10,29 @@ f(x) = begin
     return q + 50
 end
 
+g(x) = begin
+    if x > 1
+        x + g(x - 1)
+    else
+        return 1
+    end
+    while true
+        println("Nice!")
+    end
+    return
+end
+
 @testset "code_info" begin
     ir = code_info(f, Int)
     @test ir == nothing
     ir, b = code_info(f, Tuple{Int})
     @test ir != nothing
-    display(b.code)
+    display(b.ref.codelocs)
+    display(b.codelocs)
+    ir, b = code_info(g, Tuple{Int})
+    @test ir != nothing
+    display(b.ref.codelocs)
+    display(b.codelocs)
 end
 
 @testset "iterate" begin

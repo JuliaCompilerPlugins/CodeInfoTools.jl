@@ -169,7 +169,7 @@ end
 Insert a new slot into the IR with name `slot`. Increments all SSA value instances to preserve the correct ordering.
 """, pushslot!)
 
-function push!(b::Builder, stmt, codeloc::Int32=Int32(1))
+function push!(b::Builder, stmt, codeloc::Int32=Int32(0))
     push!(b.code, stmt)
     push!(b.codelocs, codeloc)
     return b
@@ -178,7 +178,7 @@ end
 function pushfirst!(b::Builder, stmt)
     circshift!(b, 1)
     pushfirst!(b.code, stmt)
-    pushfirst!(b.codelocs, Int32(1))
+    pushfirst!(b.codelocs, Int32(0))
     return b
 end
 
