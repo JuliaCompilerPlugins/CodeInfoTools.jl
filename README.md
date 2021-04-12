@@ -1,11 +1,16 @@
 # CodeInfoTools.jl
 
-[![Build Status][build-img]][build-url] [![CodeCov][codecov-img]][codecov-url] [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://femtomc.github.io/CodeInfoTools.jl/dev)
+| **Build Status**                                       | **Coverage**                    | **Documentation** |
+|:------------------------------------------------------:|:-------------------------------:|:-----------------:|
+| [![][gha-1.6-img]][gha-url] [![][gha-nightly-img]][gha-url] | [![][codecov-img]][codecov-url] | [![][dev-docs-img]][dev-docs-url] |
 
-[build-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/CI/badge.svg
-[build-url]: https://github.com/femtomc/CodeInfoTools.jl/actions
-[codecov-img]: https://codecov.io/github/femtomc/CodeInfoTools.jl/badge.svg?branch=main
-[codecov-url]: https://codecov.io/github/femtomc/CodeInfoTools.jl?branch=main
+[gha-1.6-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/julia-1.6/badge.svg
+[gha-nightly-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/julia-nightly/badge.svg
+[gha-url]: https://github.com/femtomc/CodeInfoTools.jl/actions
+[codecov-img]: https://codecov.io/github/femtomc/CodeInfoTools.jl/badge.svg?branch=master
+[codecov-url]: https://codecov.io/github/femtomc/CodeInfoTools.jl?branch=master
+[dev-docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[dev-docs-url]: https://femtomc.github.io/CodeInfoTools.jl/dev
 
 ```
 ] add CodeInfoTools
@@ -19,7 +24,7 @@ Working with untyped `CodeInfo` is often not fun. E.g. when examining the untype
 
 ```
 CodeInfo(
-    @ /Users/mccoybecker/dev/Mixtape.jl/examples/simple.jl:7 within `rosenbrock'
+    @ /Users/mccoybecker/dev/CodeInfoTools.jl/examples/simple.jl:7 within `rosenbrock'
 1 ─       a = 1.0
 │         b = 100.0
 │         result = 0.0

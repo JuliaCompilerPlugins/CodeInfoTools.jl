@@ -1,4 +1,4 @@
-name: CI
+name: julia-1.6
 on:
   push:
     branches:
@@ -32,7 +32,10 @@ jobs:
           path: ~/.julia/artifacts
           key: ${{ runner.os }}-test-artifacts-${{ hashFiles('**/Project.toml') }}
           restore-keys: ${{ runner.os }}-test-artifacts
-      - uses: julia-actions/julia-buildpkg@v1
+      - run: |
+          julia --project=. -e '
+            using Pkg
+            Pkg.instantiate()'
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
@@ -50,7 +53,6 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Pkg
-            Pkg.add(url="https://github.com/femtomc/CodeInfoTools.jl")
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
       - run: julia --project=docs docs/make.jl
