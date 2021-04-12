@@ -74,12 +74,9 @@ end
 Return the expression/node at index `i` from the `Vector{Any}` of lowered code statements.
 """, getindex)
 
-function iterate(b::Builder, (ks, i) = (1:length(b.code), 1))
+function iterate(b::Builder, (ks, i)=(1:length(b.code), 1))
     i <= length(ks) || return
-    if b[i] isa Expr && b[i].head == :(=)
-        return (Core.SSAValue(ks[i]) => b[i].args[2], (ks, i + 1))
-    end
-    return (Core.SSAValue(ks[i]) => b[i], (ks, i + 1))
+    return (ks[i] => b[i], (ks, i + 1))
 end
 
 @doc(
@@ -118,7 +115,7 @@ function _circshift_swap(st::Core.GotoNode, deg, v; ch=r -> true)
 end
 function _circshift_swap(st::Core.GotoIfNot, deg, v; ch=r -> true)
     return Core.GotoIfNot(_circshift_swap(st.cond, deg, v; ch=ch),
-        _circshift_swap(st.dest, deg, v; ch=ch))
+                          _circshift_swap(st.dest, deg, v; ch=ch))
 end
 function _circshift_swap(st::Core.ReturnNode, deg, v; ch=r -> true)
     return Core.ReturnNode(_circshift_swap(st.val, deg, v; ch=ch))
@@ -169,7 +166,7 @@ end
 Insert a new slot into the IR with name `slot`. Increments all SSA value instances to preserve the correct ordering.
 """, pushslot!)
 
-function push!(b::Builder, stmt, codeloc::Int32=Int32(0))
+function push!(b::Builder, stmt, codeloc::Int32=Int32(1))
     push!(b.code, stmt)
     push!(b.codelocs, codeloc)
     return b
@@ -178,7 +175,7 @@ end
 function pushfirst!(b::Builder, stmt)
     circshift!(b, 1)
     pushfirst!(b.code, stmt)
-    pushfirst!(b.codelocs, Int32(0))
+    pushfirst!(b.codelocs, Int32(1))
     return b
 end
 
@@ -194,10 +191,8 @@ function insert!(b::Builder, v::Int, stmt)
     insert!(b.code, v, stmt)
     insert!(b.codelocs, v, 1)
     b.changemap[v] += 1
-    return SSAValue(v)
+    return NewSSAValue(length(b.code))
 end
-
-insert!(b::Builder, v::Core.SSAValue, stmt) = insert!(b.code, v.id, stmt)
 
 @doc(
 """
@@ -212,12 +207,6 @@ function replace!(b::Builder, v::Int, stmt)
     return NewSSAValue(v + 1)
 end
 
-function replace!(b::Builder, v::Core.SSAValue, stmt)
-    @assert(v.id <= length(b.codelocs))
-    b.code[v.id] = stmt
-    return NewSSAValue(v.id + 1)
-end
-
 @doc(
 """
     replace!(b::Builder, v::Int, stmt)
@@ -229,7 +218,7 @@ function update_slots(e, slotmap)
     e isa Core.SlotNumber && return Core.SlotNumber(e.id + slotmap[e.id])
     e isa Expr && return Expr(e.head, map(x -> update_slots(x, slotmap), e.args)...)
     e isa Core.NewvarNode &&
-    return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
+        return Core.NewvarNode(Core.SlotNumber(e.slot.id + slotmap[e.slot.id]))
     return e
 end
 
@@ -258,9 +247,9 @@ function _replace_new_ssavalue(e)
         return Core.GotoIfNot(cond, e.dest)
     end
     e isa Core.ReturnNode &&
-    isdefined(e, :val) &&
-    isa(e.val, NewSSAValue) &&
-    return Core.ReturnNode(SSAValue(e.val.id))
+        isdefined(e, :val) &&
+        isa(e.val, NewSSAValue) &&
+        return Core.ReturnNode(SSAValue(e.val.id))
     return e
 end
 
