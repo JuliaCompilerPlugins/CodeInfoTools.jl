@@ -278,6 +278,18 @@ end
 Iterate over the reference `CodeInfo` instance in `b.ref` -- pushing `Expr` instances and nodes onto the builder `b`. This function is called during `Builder` construction so that the user is presented with a copy of the `CodeInfo` in `b.ref`.
 """, prepare_builder!)
 
+function clean!(src::Core.CodeInfo)
+    if src.ssavaluetypes isa Vector
+        src.ssavaluetypes = length(src.ssavaluetypes)
+    end
+    src.ssaflags = UInt8[]
+    src.inferred = false
+    src.inlineable = true
+    src.rettype = Any
+    src.slottypes = nothing
+    return src
+end
+
 function finish(b::Builder)
     new_ci = copy(b.ref)
     new_ci.code = b.code
@@ -303,6 +315,6 @@ Base.display(b::Builder) = display(finish(b))
 ##### Exports
 #####
 
-export code_info, Builder, slot, finish, bump!, slump!, pushslot!
+export code_info, Builder, slot, finish, clean!, bump!, slump!, pushslot!
 
 end # module

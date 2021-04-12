@@ -29,6 +29,8 @@ end
     @test ir != nothing
     ir, b = code_info(g, Tuple{Int})
     @test ir != nothing
+    src = finish(b)
+    clean!(src)
     display(b)
 end
 
