@@ -68,6 +68,18 @@ end
     @test b[8].val == Core.SSAValue(7)
 end
 
+@testset "push!" begin
+    ir, b = code_info(f, Tuple{Int})
+    c = deepcopy(b.code)
+    push!(b, Expr(:call, rand))
+    @test length(b.code) == length(b.codelocs)
+    push!(b, Expr(:call, rand))
+    @test length(b.code) == length(b.codelocs)
+    push!(b, Expr(:call, rand))
+    @test length(b.code) == length(b.codelocs)
+    @test b.code[1 : end - 3] == c
+end
+
 @testset "bump!" begin
     ir, b = code_info(f, Tuple{Int})
     c = deepcopy(b.code)
@@ -87,7 +99,7 @@ end
     len = length(b.code)
     c = deepcopy(b.code)
     insert!(b, 1, Expr(:call, Base.:(*), 5, 3))
-    insert!(b, 3, Expr(:call, Base.:(*), 5, 3))
+    insert!(b, Core.SSAValue(3), Expr(:call, Base.:(*), 5, 3))
     deleteat!(b, 3)
     deleteat!(b, 1)
     @test length(b.code) == len
@@ -98,9 +110,9 @@ end
     @test length(b.code) == length(b.codelocs)
     pushfirst!(b, Expr(:call, rand))
     @test length(b.code) == length(b.codelocs)
+    deleteat!(b, Core.SSAValue(1))
     deleteat!(b, 1)
-    deleteat!(b, 1)
-    deleteat!(b, 1)
+    deleteat!(b, Core.SSAValue(1))
     @test c == b.code
 end
 
@@ -118,6 +130,11 @@ end
     end
     @test c == b.slotnames
     @test l == b.code
+end
+
+@testset "Base.:(+) -- SSAValues" begin
+    @test (+)(Core.SSAValue(1), 1) == Core.SSAValue(2)
+    @test (+)(1, Core.SSAValue(1)) == Core.SSAValue(2)
 end
 
 end # module
