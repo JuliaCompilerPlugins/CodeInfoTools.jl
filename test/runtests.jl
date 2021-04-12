@@ -27,19 +27,15 @@ end
     @test ir == nothing
     ir, b = code_info(f, Tuple{Int})
     @test ir != nothing
-    display(b.ref.codelocs)
-    display(b.codelocs)
     ir, b = code_info(g, Tuple{Int})
     @test ir != nothing
-    display(b.ref.codelocs)
-    display(b.codelocs)
 end
 
 @testset "iterate" begin
     ir, b = code_info(f, Tuple{Int})
     local c = 1
     for (v, st) in b
-        @test v == Core.SSAValue(c)
+        @test v == c
         c += 1
     end
 end
