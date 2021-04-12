@@ -38,7 +38,7 @@ struct Builder
     function Builder(ci::CodeInfo, nargs::Int; prepare=true)
         code = []
         codelocs = Int32[]
-        newslots = Dict{Int,Symbol}()
+        newslots = Dict{Int, Symbol}()
         slotnames = copy(ci.slotnames)
         slotmap = fill(0, length(ci.slotnames))
         b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, slotmap)
@@ -186,6 +186,7 @@ Push a statement to the head of `b.code`. This call first shifts all SSA values 
 """, pushfirst!)
 
 function insert!(b::Builder, v::Int, stmt)
+    v > 0 || return
     v == 1 && return pushfirst!(b, stmt)
     v > length(b.code) && return push!(b, stmt)
     bump!(b, v)
@@ -210,6 +211,7 @@ function replace!(b::Builder, v::Int, stmt)
     b.code[v] = stmt
     return Core.SSAValue(v + 1)
 end
+
 function replace!(b::Builder, v::Core.SSAValue, stmt)
     return replace!(b, v.id, stmt)
 end
