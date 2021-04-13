@@ -175,7 +175,7 @@ Insert a new slot into the IR with name `slot`. Increments all SSA value instanc
 
 function push!(b::Builder, stmt)
     push!(b.code, stmt)
-    push!(b.codelocs, Int32(0))
+    push!(b.codelocs, Int32(1))
     return b
 end
 
@@ -189,7 +189,7 @@ Push a statement to the end of `b.code`.
 function pushfirst!(b::Builder, stmt)
     circshift!(b, 1)
     pushfirst!(b.code, stmt)
-    pushfirst!(b.codelocs, Int32(0))
+    pushfirst!(b.codelocs, Int32(1))
     return b
 end
 
@@ -206,7 +206,7 @@ function insert!(b::Builder, v::Int, stmt)
     v > length(b.code) && return push!(b, stmt)
     bump!(b, v)
     insert!(b.code, v, stmt)
-    insert!(b.codelocs, v, 0)
+    insert!(b.codelocs, v, 1)
     return Core.SSAValue(v)
 end
 
@@ -284,7 +284,6 @@ function clean!(src::Core.CodeInfo)
     end
     src.ssaflags = UInt8[]
     src.inferred = false
-    src.inlineable = true
     src.rettype = Any
     src.slottypes = nothing
     return src
@@ -297,7 +296,7 @@ function finish(b::Builder)
     new_ci.slotnames = b.slotnames
     new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
     new_ci.inferred = false
-    new_ci.inlineable = true
+    new_ci.inlineable = b.ref.inlineable
     new_ci.ssavaluetypes = length(b.code)
     return new_ci
 end
