@@ -2,7 +2,7 @@ module CodeInfoTools
 
 using Core: CodeInfo 
 
-import Base: iterate, push!, pushfirst!, insert!, replace!, display, delete!, getindex, +, setindex!
+import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +
 
 Base.:(+)(v::Core.SSAValue, id::Int) = Core.SSAValue(v.id + id)
 Base.:(+)(id::Int, v::Core.SSAValue) = Core.SSAValue(v.id + id)
@@ -20,7 +20,7 @@ end
 Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
 """, code_info)
 
-walk(fn, x) = x
+walk(fn, x) = fn(x)
 walk(fn, x::Core.SSAValue) = Core.SSAValue(fn(x.id))
 walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
 walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
@@ -32,6 +32,9 @@ function walk(fn, x::Vector)
     end
 end
 
+resolve(x) = x
+resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
+
 #####
 ##### Pipe
 #####
@@ -42,11 +45,18 @@ struct Canvas
     codelocs::Vector{Int32}
 end
 Canvas() = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+function getindex(c::Canvas, v)
+    ind = findfirst(k -> k[2] == v, c.defs)
+    ind == nothing && return
+    getindex(c.code, ind)
+end
 
 function push!(c::Canvas, stmt)
     push!(c.code, stmt)
     push!(c.codelocs, Int32(1))
-    return Core.SSAValue(length(c.code))
+    l = length(c.defs) + 1
+    push!(c.defs, (l, l))
+    return Core.SSAValue(length(c.defs))
 end
 
 function insert!(c::Canvas, idx::Int, x)
@@ -76,7 +86,7 @@ end
 
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
-setindex!(c, x, v) = setindex!(c.code, x, v)
+setindex!(c::Canvas, x, v::Core.SSAValue) = setindex!(c.code, x, v.id)
 
 mutable struct Pipe
     from::CodeInfo
@@ -86,10 +96,13 @@ mutable struct Pipe
 end
 
 function Pipe(ci::CodeInfo)
-    canv = Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(ci.code)], Any[], Int32[])
+    canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
     p = Pipe(ci, canv, Dict(), 0)
     return p
 end
+
+getindex(p::Pipe, v) = getindex(p.to, v)
+lastindex(p::Pipe) = length(p.to.defs)
 
 var!(p::Pipe) = Core.SSAValue(p.var += 1)
 
@@ -110,16 +123,19 @@ end
 function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
     i > length(ks) && return
     v = ks[i]
-    st = p.from.code[v.id]
+    st = walk(resolve, p.from.code[v.id])
     substitute!(p, v, push!(p.to, substitute(p, st)))
     return ((v, st), (ks, i + 1))
 end
+
+_get(d, x, v) = x
+_get(d, x::Core.SSAValue, v) = get(d, x.id, v)
 
 function renumber(c::Canvas)
     d = Dict(c.defs)
     n = Canvas()
     for (v, st) in enumerate(c.code)
-        push!(n.code, walk(x -> get(d, x, x), st))
+        push!(n.code, walk(x -> _get(d, x, x), st))
         push!(n.defs, (v, v))
         push!(n.codelocs, Int32(1))
     end
@@ -129,7 +145,7 @@ end
 function renumber!(c::Canvas)
     d = Dict(c.defs)
     for (v, st) in enumerate(c.code)
-        setindex!(c.code, walk(x -> get(d, x, x), st), v)
+        setindex!(c.code, walk(x -> _get(d, x, x), st), v)
         setindex!(c.defs, (v, v), v)
         setindex!(c.codelocs, Int32(1), v)
     end
@@ -151,6 +167,7 @@ end
 
 islastdef(c::Canvas, v) = v == length(c.defs)
 
+setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 function setindex!(p::Pipe, x::Core.SSAValue, v)
     v′= substitute(p, v)
     if islastdef(p.to, v′)
@@ -198,7 +215,7 @@ function insert!(p::Pipe, v, x::T; after = false) where T
             substitute!(p, tmp, v′)
         end
     else
-        substitute!(p, tmp, insert!(p.to, v′ + after, x))
+        substitute!(p, tmp, insert!(p.to, v′.id + Int(after), x))
     end
     return tmp
 end
