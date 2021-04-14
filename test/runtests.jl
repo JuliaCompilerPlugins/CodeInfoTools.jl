@@ -180,6 +180,7 @@ end
     display(p)
     @test CodeInfoTools.walk(CodeInfoTools.resolve, p.from.code) == finish(p).code
     delete!(p, length(p.to.code))
+    c = finish(p)
 end
 
 @testset "Base.:(+) -- SSAValues" begin

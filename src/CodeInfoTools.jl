@@ -89,6 +89,7 @@ function delete!(c::Canvas, idx::Int)
     end
     return Variable(length(c.defs))
 end
+delete!(c::Canvas, v::Union{Variable, NewVariable}) = delete!(c, v.id)
 
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
@@ -156,17 +157,6 @@ end
 
 _get(d, x, v) = x
 _get(d, x::Variable, v) = get(d, x.id, v)
-
-function renumber(c::CodeInfo)
-    p = Pipe(c)
-    for (v, st) in p
-        if isbits(st) # Trivial expressions can be inlined
-            delete!(p, v)
-            substitute!(p, v, substitute(p, st))
-        end
-    end
-    return finish(p)
-end
 
 function finish(p::Pipe)
     new_ci = copy(p.from)
@@ -248,6 +238,6 @@ Base.display(p::Pipe) = display(finish(p))
 ##### Exports
 #####
 
-export code_info, renumber, finish
+export code_info, finish
 
 end # module
