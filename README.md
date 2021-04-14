@@ -16,11 +16,11 @@
 ] add CodeInfoTools
 ```
 
-> A curated collection of tools for the discerning `CodeInfo` connoisseur.
+> **Note**: A curated collection of tools for the discerning `CodeInfo` connoisseur. The architecture of this package is based closely on the [Pipe construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
 
 ## Motivation
 
-Working with untyped `CodeInfo` is often not fun. E.g. when examining the untyped expansion of the [Rosenbrock function](https://en.wikipedia.org/wiki/Rosenbrock_function)
+Working with `CodeInfo` is often not fun. E.g. when examining the untyped expansion of the [Rosenbrock function](https://en.wikipedia.org/wiki/Rosenbrock_function)
 
 ```
 CodeInfo(
@@ -38,28 +38,10 @@ CodeInfo(
 2 ┄ %11 = @_3
 │         i = (getfield)(%11, 1)
 │   %13 = (getfield)(%11, 2)
-│   %14 = result
-│   %15 = a
-│   %16 = (getindex)(x, i)
-│   %17 = (-)(%15, %16)
-│   %18 = (Core.apply_type)(Val, 2)
-│   %19 = (%18)()
-│   %20 = (Base.literal_pow)(^, %17, %19)
-│   %21 = b
-│   %22 = (+)(i, 1)
-│   %23 = (getindex)(x, %22)
-│   %24 = (getindex)(x, i)
-│   %25 = (Core.apply_type)(Val, 2)
-│   %26 = (%25)()
-│   %27 = (Base.literal_pow)(^, %24, %26)
-│   %28 = (-)(%23, %27)
-│   %29 = (Core.apply_type)(Val, 2)
-│   %30 = (%29)()
-│   %31 = (Base.literal_pow)(^, %28, %30)
-│   %32 = (*)(%21, %31)
-│   %33 = (+)(%20, %32)
-│         result = (+)(%14, %33)
-│         @_3 = (iterate)(%6, %13)
+│                .
+│                .
+│                .
+│
 │   %36 = (===)(@_3, nothing)
 │   %37 = (Core.Intrinsics.not_int)(%36)
 └──       goto #4 if not %37
@@ -68,34 +50,32 @@ CodeInfo(
 )
 ```
 
-Do you ever wonder -- is there another (perhaps, any) way to work with this object? A `Builder` perhaps? Where I might load my `CodeInfo` into -- iterate, make local changes, and produce a new copy?
+Do you ever wonder -- is there another (perhaps, any) way to work with this object? A `Pipe` perhaps? Where I might load my `CodeInfo` into -- iterate, make local changes, and produce a new copy?
 
 Fear no longer, my intuitive friend! We present `CodeInfoTools.jl` to assuage your fears and provide you (yes, you) with an assortment of tools to mangle, distort, smooth, slice, chunk, and, above all, _work with_ `CodeInfo`.
 
 ## Contribution
 
-`CodeInfoTools.jl` provides an IR `Builder` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
+`CodeInfoTools.jl` provides an IR `Pipe` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
 
 ```julia
-struct Builder
-    ref::CodeInfo
+struct Canvas
+    defs::Vector{Tuple{Int, Int}}
     code::Vector{Any}
-    nargs::Int32
     codelocs::Vector{Int32}
-    newslots::Dict{Int,Symbol}
-    slotnames::Vector{Symbol}
-    slotmap::Vector{Int}
+end
 
-    function Builder(ci::CodeInfo, nargs::Int; prepare=true)
-        code = []
-        codelocs = Int32[]
-        newslots = Dict{Int, Symbol}()
-        slotnames = copy(ci.slotnames)
-        slotmap = fill(0, length(ci.slotnames))
-        b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, slotmap)
-        prepare && prepare_builder!(b)
-        return b
-    end
+mutable struct Pipe
+    from::CodeInfo
+    to::Canvas # just the mutable bits
+    map::Dict{Any, Any}
+    var::Int
+end
+
+function Pipe(ci::CodeInfo)
+    canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+    p = Pipe(ci, canv, Dict(), 0)
+    return p
 end
 ```
 
@@ -114,23 +94,24 @@ function f(x, y)
     end
 end
 
-ir, b = code_info(f, Tuple{Int,Int})
+ir = code_info(f, Tuple{Int,Int})
 
-function transform(b)
-    for (v, st) in b
+function transform(ir)
+    p = CodeInfoTools.Pipe(ir)
+    for (v, st) in p
         st isa Expr || continue
         st.head == :call || continue
         st.args[1] == Base.:(+) || continue
-        replace!(b, v, Expr(:call, Base.:(*), st.args[2:end]...))
+        p[v] = Expr(:call, Base.:(*), st.args[2:end]...)
     end
-    return finish(b)
+    return finish(p)
 end
 
 display(ir)
-display(transform(b))
+display(transform(ir))
 ```
 
-Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `b`. You can now safely iterate over this object, perform local changes with `replace!`, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
+Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Pipe` instance `p`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
 
 ```
 # Before:
