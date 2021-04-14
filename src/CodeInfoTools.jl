@@ -131,7 +131,7 @@ substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe, x::Core.SSAValue) = p.map[x]
 substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
 substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
-substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(b, x.dest))
+substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
 substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
 substitute(p::Pipe) = x -> substitute(p, x)
 
@@ -184,7 +184,7 @@ end
     renumber!(c::Canvas)
 
 In place version of [`renumber`](@ref).
-""", renumber)
+""", renumber!)
 
 function finish(p::Pipe)
     c = renumber!(p.to)
@@ -209,7 +209,7 @@ Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `C
 islastdef(c::Canvas, v) = v == length(c.defs)
 
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
-function setindex!(p::Pipe, x::Core.SSAValue, v)
+function setindex!(p::Pipe, x, v::Core.SSAValue)
     v′= substitute(p, v)
     if islastdef(p.to, v′)
         delete!(p, v)
