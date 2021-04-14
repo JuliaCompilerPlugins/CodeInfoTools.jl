@@ -101,6 +101,26 @@ function Pipe(ci::CodeInfo)
     return p
 end
 
+@doc(
+"""
+    Pipe(ir)
+
+A wrapper around a `Canvas` object -- allow incremental construction of `CodeInfo`. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
+
+In general, it is not efficient to insert statements onto your working `Canvas`; only appending is
+fast, for the same reason as with `Vector`s.
+For this reason, the `Pipe` construct makes it convenient to incrementally build a `Canvas` fragment from a piece of `CodeInfo`, making efficient modifications as you go.
+The general pattern looks like:
+```julia
+pr = CodeInfoTools.Pipe(ir)
+for (v, st) in pr
+  # do stuff
+end
+ir = CodeInfoTools.finish(pr)
+```
+In the loop, inserting and deleting statements in `pr` around `v` is efficient.
+""", Pipe)
+
 getindex(p::Pipe, v) = getindex(p.to, v)
 lastindex(p::Pipe) = length(p.to.defs)
 
@@ -142,6 +162,13 @@ function renumber(c::Canvas)
     return n
 end
 
+@doc(
+"""
+    renumber(c::Canvas)
+
+Create a new `Canvas` instance with SSA values re-numbered and ordered linearly from `c.defs).
+""", renumber)
+
 function renumber!(c::Canvas)
     d = Dict(c.defs)
     for (v, st) in enumerate(c.code)
@@ -151,6 +178,13 @@ function renumber!(c::Canvas)
     end
     return c
 end
+
+@doc(
+"""
+    renumber!(c::Canvas)
+
+In place version of [`renumber`](@ref).
+""", renumber)
 
 function finish(p::Pipe)
     c = renumber!(p.to)
@@ -164,6 +198,13 @@ function finish(p::Pipe)
     new_ci.ssavaluetypes = length(p.to.code)
     return new_ci
 end
+
+@doc(
+"""
+    finish(p::Pipe)
+
+Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
+""", finish)
 
 islastdef(c::Canvas, v) = v == length(c.defs)
 
@@ -226,6 +267,6 @@ Base.display(p::Pipe) = display(finish(p))
 ##### Exports
 #####
 
-export code_info, Pipe, finish
+export code_info, renumber, finish
 
 end # module
