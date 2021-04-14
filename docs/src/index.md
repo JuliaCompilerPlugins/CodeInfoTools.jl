@@ -8,18 +8,8 @@ CurrentModule = CodeInfoTools
 
 ```@docs
 code_info
-Builder
-prepare_builder!
-getindex
-iterate
-circshift!
-bump!
-slump!
-push!
-pushfirst!
-insert!
-replace!
-deleteat!
-pushslot!
+Pipe
+renumber
+renumber!
 finish
 ```

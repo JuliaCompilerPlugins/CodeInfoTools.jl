@@ -1,106 +1,16 @@
 module CodeInfoTools
 
-using Core: CodeInfo, Slot
-using Core.Compiler: renumber_ir_elements!
+using Core: CodeInfo 
 
-import Base: iterate, circshift!, push!, pushfirst!, insert!, replace!, display, delete!, getindex, +, deleteat!
+import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +
 
 Base.:(+)(v::Core.SSAValue, id::Int) = Core.SSAValue(v.id + id)
 Base.:(+)(id::Int, v::Core.SSAValue) = Core.SSAValue(v.id + id)
 
-apply(fn, x) = x
-apply(fn, x::GlobalRef) = fn(x)
-apply(fn, x::Core.NewvarNode) = x
-apply(fn, x::Core.SSAValue) = fn(x)
-apply(fn, x::Core.SlotNumber) = fn(x)
-apply(fn, x::Core.GotoIfNot) = Core.GotoIfNot(apply(fn, x.cond), apply(fn, x.dest))
-apply(fn, x::Core.GotoNode) = Core.GotoNode(apply(fn, x.label))
-apply(fn, x::Core.ReturnNode) = Core.ReturnNode(apply(fn, x.val))
-apply(fn, x::Expr) = Expr(x.head, map(x -> apply(fn, x), x.args)...)
-
-_resolve(x) = x
-_resolve(x::GlobalRef) = getproperty(x.mod, x.name)
-resolve(x) = apply(_resolve, x)
-
-#####
-##### Builder
-#####
-
-struct Builder
-    ref::CodeInfo
-    code::Vector{Any}
-    nargs::Int32
-    codelocs::Vector{Int32}
-    newslots::Dict{Int,Symbol}
-    slotnames::Vector{Symbol}
-    slotmap::Vector{Int}
-
-    function Builder(ci::CodeInfo, nargs::Int; prepare=true)
-        code = []
-        codelocs = Int32[]
-        newslots = Dict{Int, Symbol}()
-        slotnames = copy(ci.slotnames)
-        slotmap = fill(0, length(ci.slotnames))
-        b = new(ci, code, nargs + 1, codelocs, newslots, slotnames, slotmap)
-        prepare && prepare_builder!(b)
-        return b
-    end
-end
-
-@doc(
-"""
-```julia
-struct Builder
-    ref::CodeInfo
-    code::Vector{Any}
-    nargs::Int32
-    codelocs::Vector{Int32}
-    newslots::Dict{Int,Symbol}
-    slotnames::Vector{Symbol}
-    slotmap::Vector{Int}
-end
-
-Builder(ci::CodeInfo, nargs::Int; prepare=true)
-```
-
-An immutable wrapper around `CodeInfo` which allows a user to insert statements, change SSA values, insert `Core.SlotNumber` instances, etc -- without effecting the wrapped `CodeInfo` instance. 
-
-Call `finish(b::Builder)` to produce a modified instance of `CodeInfo`.
-""", Builder)
-
-function getindex(b::Builder, i::Int)
-    @assert(i <= length(b.code))
-    return getindex(b.code, i)
-end
-
-function getindex(b::Builder, i::Core.SSAValue)
-    return getindex(b.code, i.id)
-end
-
-@doc(
-"""
-    getindex(b::Builder, i::Int)
-    getindex(b::Builder, i::Core.SSAValue)
-
-Return the expression/node at index `i` from the `Vector` of lowered code statements.
-""", getindex)
-
-function iterate(b::Builder, (ks, i)=(1:length(b.code), 1))
-    i <= length(ks) || return
-    return (Core.SSAValue(ks[i]) => b[i], (ks, i + 1))
-end
-
-@doc(
-"""
-    iterate(b::Builder, (ks, i) = (1 : length(b.code), 1))
-
-Iterate over the builder -- generating a tuple (Core.SSAValue(k), stmt) at each iteration step, where `k` is an index and `stmt` is a node or `Expr` instance.
-""", iterate)
-
 function code_info(f, tt; generated=true, debuginfo=:default)
     ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
     isempty(ir) && return nothing
-    return ir[1], Builder(ir[1], length(tt.parameters))
+    return ir[1]
 end
 
 @doc(
@@ -110,199 +20,253 @@ end
 Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
 """, code_info)
 
-slot(b::Builder, name::Symbol) = Core.SlotNumber(findfirst(isequal(name), b.slotnames))
-
-function _circshift_swap(st::Core.SlotNumber, deg, v::Val{true}; ch = r -> true)
-    return ch(st.id) ? Core.SlotNumber(st.id + deg) : st
-end
-_circshift_swap(st::Core.SlotNumber, deg, v::Val{false}; ch=r -> true) = st
-_circshift_swap(st::Core.SSAValue, deg, v::Val{true}; ch=r -> true) = st
-function _circshift_swap(st::Core.SSAValue, deg, v::Val{false}; ch=r -> true)
-    return ch(st.id) ? Core.SSAValue(st.id + deg) : st
-end
-
-function circshift!(b::Builder, deg::Int; ch=r -> true, slots::Bool=false)
-    for (v, st) in b
-        replace!(b, v, apply(x -> _circshift_swap(x, deg, Val(slots); ch = ch), st))
+walk(fn, x) = fn(x)
+walk(fn, x::Core.SSAValue) = Core.SSAValue(fn(x.id))
+walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
+walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
+walk(fn, x::Core.GotoIfNot) = Core.GotoIfNot(walk(fn, x.cond), walk(fn, x.dest))
+walk(fn, x::Expr) = Expr(x.head, map(a -> walk(fn, a), x.args)...)
+function walk(fn, x::Vector)
+    map(x) do el
+        walk(fn, el)
     end
 end
 
-@doc(
-"""
-    circshift!(b::Builder, deg::Int; ch = r -> true, slots::Bool = false)
+resolve(x) = x
+resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
 
-Shift either SSA values (`slots = false`) or the `Core.SlotNumber` instances (`slots = true`) by `deg`. The Boolean function `ch` determines which subset of values are shifted and can be customized by the user.
-""", circshift!)
+#####
+##### Pipe
+#####
 
-function bump!(b::Builder, v::Int; slots=false)
-    ch = l -> l >= v
-    circshift!(b, 1; ch = ch, slots = slots)
+struct Canvas
+    defs::Vector{Tuple{Int, Int}}
+    code::Vector{Any}
+    codelocs::Vector{Int32}
+end
+Canvas() = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+function getindex(c::Canvas, v)
+    ind = findfirst(k -> k[2] == v, c.defs)
+    ind == nothing && return
+    getindex(c.code, ind)
 end
 
-@doc(
-"""
-    bump!(b::Builder, v::Int; slots = false)
-
-Subsets all instances of `Core.SSAValue` or `Core.SlotNumber` greater than `v` and shifts them up by 1. Convenience form of `circshift!`.
-""", bump!)
-
-function slump!(b::Builder, v::Int; slots=false)
-    ch = l -> l >= v
-    circshift!(b, -1; ch = ch, slots = slots)
+function push!(c::Canvas, stmt)
+    push!(c.code, stmt)
+    push!(c.codelocs, Int32(1))
+    l = length(c.defs) + 1
+    push!(c.defs, (l, l))
+    return Core.SSAValue(length(c.defs))
 end
 
-@doc(
-"""
-    slump!(b::Builder, v::Int; slots = false)
-
-Subsets all instances of `Core.SSAValue` or `Core.SlotNumber` greater than `v` and shifts them down by 1. Convenience form of `circshift!`.
-""", slump!)
-
-function pushslot!(b::Builder, slot::Symbol)
-    b.newslots[length(b.slotnames) + 1] = slot
-    push!(b.slotnames, slot)
-    new = Core.SlotNumber(length(b.slotnames))
-    pushfirst!(b, Core.NewvarNode(new))
-    return new
-end
-
-@doc(
-"""
-    pushslot!(b::Builder, slot::Symbol)
-
-Insert a new slot into the IR with name `slot`. Increments all SSA value instances to preserve the correct ordering.
-""", pushslot!)
-
-function push!(b::Builder, stmt)
-    push!(b.code, stmt)
-    push!(b.codelocs, Int32(1))
-    return b
-end
-
-@doc(
-"""
-    push!(b::Builder, stmt)
-
-Push a statement to the end of `b.code`.
-""", push!)
-
-function pushfirst!(b::Builder, stmt)
-    circshift!(b, 1)
-    pushfirst!(b.code, stmt)
-    pushfirst!(b.codelocs, Int32(1))
-    return b
-end
-
-@doc(
-"""
-    pushfirst!(b::Builder, stmt)
-
-Push a statement to the head of `b.code`. This call first shifts all SSA values up by 1 to preserve ordering.
-""", pushfirst!)
-
-function insert!(b::Builder, v::Int, stmt)
-    v > 0 || return
-    v == 1 && return pushfirst!(b, stmt)
-    v > length(b.code) && return push!(b, stmt)
-    bump!(b, v)
-    insert!(b.code, v, stmt)
-    insert!(b.codelocs, v, 1)
-    return Core.SSAValue(v)
-end
-
-function insert!(b::Builder, v::Core.SSAValue, stmt)
-    return insert!(b, v.id, stmt)
-end
-
-@doc(
-"""
-    insert!(b::Builder, v::Int, stmt)
-    insert!(b::Builder, v::Core.SSAValue, stmt)
-
-Insert an `Expr` or node `stmt` at location `v` in `b.code`. Shifts all SSA values with `id >= v` to preserve order.
-""", insert!)
-
-function replace!(b::Builder, v::Int, stmt)
-    @assert(v <= length(b.code))
-    b.code[v] = stmt
-    return Core.SSAValue(v + 1)
-end
-
-function replace!(b::Builder, v::Core.SSAValue, stmt)
-    return replace!(b, v.id, stmt)
-end
-
-@doc(
-"""
-    replace!(b::Builder, v::Int, stmt)
-    replace!(b::Builder, v::Core.SSAValue, stmt)
-
-Replace the `Expr` or node at location `v` with stmt.
-""", replace!)
-
-function deleteat!(b::Builder, v::Int)
-    v > length(b.code) && return
-    slump!(b, v)
-    if b[v] isa Core.NewvarNode
-        id = b[v].slot.id
-        deleteat!(b.slotnames, id)
+function insert!(c::Canvas, idx::Int, x)
+    insert!(c.code, idx, x)
+    insert!(c.codelocs, idx, Int32(1))
+    for i in 1 : length(c.defs)
+        k, v = c.defs[i]
+        if v >= idx
+            c.defs[i] = (k, v + 1)
+        end
     end
-    deleteat!(b.code, v)
-    deleteat!(b.codelocs, v)
-    return
+    push!(c.defs, (length(c.defs) + 1, idx))
+    return Core.SSAValue(length(c.defs))
 end
 
-function deleteat!(b::Builder, v::Core.SSAValue)
-    return deleteat!(b, v.id)
-end
-
-@doc(
-"""
-    deleteat!(b::Builder, v::Int)
-    deleteat!(b::Builder, v::Core.SSAValue)
-
-Delete the expression or node at location `v`. If `v` indexes a `Core.NewvarNode` (which indicates a slot), the slotname is also removed from `b.slotnames`. All SSA values and slots are shifted down accordingly.
-""", deleteat!)
-
-function prepare_builder!(b::Builder)
-    for (v, st) in enumerate(b.ref.code)
-        push!(b, resolve(st))
+function delete!(c::Canvas, idx::Int)
+    deleteat!(c.code, idx)
+    deleteat!(c.codelocs, idx)
+    for i in 1 : length(c.defs)
+        k, v = c.defs[i]
+        if v > idx
+            c.defs[i] = (k, v - 1)
+        end
     end
-    return b
+    return Core.SSAValue(length(c.defs))
+end
+
+pushfirst!(c::Canvas, x) = insert!(c, 1, x)
+
+setindex!(c::Canvas, x, v::Core.SSAValue) = setindex!(c.code, x, v.id)
+
+mutable struct Pipe
+    from::CodeInfo
+    to::Canvas
+    map::Dict{Any, Any}
+    var::Int
+end
+
+function Pipe(ci::CodeInfo)
+    canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+    p = Pipe(ci, canv, Dict(), 0)
+    return p
 end
 
 @doc(
 """
-    prepare_builder!(b::Builder)
+    Pipe(ir)
 
-Iterate over the reference `CodeInfo` instance in `b.ref` -- pushing `Expr` instances and nodes onto the builder `b`. This function is called during `Builder` construction so that the user is presented with a copy of the `CodeInfo` in `b.ref`.
-""", prepare_builder!)
+A wrapper around a `Canvas` object -- allow incremental construction of `CodeInfo`. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 
-function finish(b::Builder)
-    new_ci = copy(b.ref)
-    new_ci.code = b.code
-    new_ci.codelocs = b.codelocs
-    new_ci.slotnames = b.slotnames
+In general, it is not efficient to insert statements onto your working `Canvas`; only appending is
+fast, for the same reason as with `Vector`s.
+For this reason, the `Pipe` construct makes it convenient to incrementally build a `Canvas` fragment from a piece of `CodeInfo`, making efficient modifications as you go.
+The general pattern looks like:
+```julia
+pr = CodeInfoTools.Pipe(ir)
+for (v, st) in pr
+  # do stuff
+end
+ir = CodeInfoTools.finish(pr)
+```
+In the loop, inserting and deleting statements in `pr` around `v` is efficient.
+""", Pipe)
+
+getindex(p::Pipe, v) = getindex(p.to, v)
+lastindex(p::Pipe) = length(p.to.defs)
+
+var!(p::Pipe) = Core.SSAValue(p.var += 1)
+
+substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
+substitute(p::Pipe, x) = get(p.map, x, x)
+substitute(p::Pipe, x::Core.SSAValue) = p.map[x]
+substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
+substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
+substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(b, x.dest))
+substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
+substitute(p::Pipe) = x -> substitute(p, x)
+
+function pipestate(ci::CodeInfo)
+    ks = sort([Core.SSAValue(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
+    return first.(ks)
+end
+
+function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
+    i > length(ks) && return
+    v = ks[i]
+    st = walk(resolve, p.from.code[v.id])
+    substitute!(p, v, push!(p.to, substitute(p, st)))
+    return ((v, st), (ks, i + 1))
+end
+
+_get(d, x, v) = x
+_get(d, x::Core.SSAValue, v) = get(d, x.id, v)
+
+function renumber(c::Canvas)
+    d = Dict(c.defs)
+    n = Canvas()
+    for (v, st) in enumerate(c.code)
+        push!(n.code, walk(x -> _get(d, x, x), st))
+        push!(n.defs, (v, v))
+        push!(n.codelocs, Int32(1))
+    end
+    return n
+end
+
+@doc(
+"""
+    renumber(c::Canvas)
+
+Create a new `Canvas` instance with SSA values re-numbered and ordered linearly from `c.defs).
+""", renumber)
+
+function renumber!(c::Canvas)
+    d = Dict(c.defs)
+    for (v, st) in enumerate(c.code)
+        setindex!(c.code, walk(x -> _get(d, x, x), st), v)
+        setindex!(c.defs, (v, v), v)
+        setindex!(c.codelocs, Int32(1), v)
+    end
+    return c
+end
+
+@doc(
+"""
+    renumber!(c::Canvas)
+
+In place version of [`renumber`](@ref).
+""", renumber)
+
+function finish(p::Pipe)
+    c = renumber!(p.to)
+    new_ci = copy(p.from)
+    new_ci.code = c.code
+    new_ci.codelocs = p.to.codelocs
+    new_ci.slotnames = p.from.slotnames
     new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
     new_ci.inferred = false
-    new_ci.inlineable = b.ref.inlineable
-    new_ci.ssavaluetypes = length(b.code)
+    new_ci.inlineable = p.from.inlineable
+    new_ci.ssavaluetypes = length(p.to.code)
     return new_ci
 end
 
 @doc(
 """
-    finish(b::Builder)
+    finish(p::Pipe)
 
-Produce a new `CodeInfo` instance from a `Builder` instance `b`.
+Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
 """, finish)
 
-Base.display(b::Builder) = display(finish(b))
+islastdef(c::Canvas, v) = v == length(c.defs)
+
+setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
+function setindex!(p::Pipe, x::Core.SSAValue, v)
+    v′= substitute(p, v)
+    if islastdef(p.to, v′)
+        delete!(p, v)
+        substitute!(p, v, substitute(p, x))
+    else
+        p.to[v′] = substitute(p, x)
+    end
+end
+
+function Base.push!(p::Pipe, x)
+    tmp = var!(p)
+    substitute!(p, tmp, push!(p.to, substitute(p, x)))
+    return tmp
+end
+
+function Base.pushfirst!(p::Pipe, x)
+    tmp = var!(p)
+    v = pushfirst!(p.to, substitute(p, x))
+    substitute!(p, tmp, v)
+    return tmp
+end
+
+function Base.delete!(p::Pipe, v)
+    v′ = substitute(p, v)
+    delete!(p.map, v)
+    if islastdef(p.to, v′)
+        pop!(p.to.defs)
+        pop!(p.to.code)
+    else
+        delete!(p.to, v′)
+    end
+end
+
+function insert!(p::Pipe, v, x::T; after = false) where T
+    v′ = substitute(p, v)
+    x = substitute(p, x)
+    tmp = var!(p)
+    if islastdef(p.to, v′)
+        if after
+            substitute!(p, tmp, push!(p.to, x))
+        else
+            substitute!(p, v, push!(p.to, p.to[v′]))
+            p.to[v′] = T(x)
+            substitute!(p, tmp, v′)
+        end
+    else
+        substitute!(p, tmp, insert!(p.to, v′.id + Int(after), x))
+    end
+    return tmp
+end
+
+Base.display(p::Pipe) = display(finish(p))
 
 #####
 ##### Exports
 #####
 
-export code_info, Builder, slot, finish, bump!, slump!, pushslot!
+export code_info, renumber, finish
 
 end # module

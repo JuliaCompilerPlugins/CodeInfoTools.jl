@@ -25,112 +25,87 @@ end
 @testset "code_info" begin
     ir = code_info(f, Int)
     @test ir == nothing
-    ir, b = code_info(f, Tuple{Int})
+    ir = code_info(f, Tuple{Int})
     @test ir != nothing
-    ir, b = code_info(g, Tuple{Int})
+    ir = code_info(g, Tuple{Int})
     @test ir != nothing
-    src = finish(b)
-    display(b)
 end
 
 @testset "iterate" begin
-    ir, b = code_info(f, Tuple{Int})
+    ir = code_info(f, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
     local c = 1
-    for (v, st) in b
+    for (v, st) in p
         @test v == Core.SSAValue(c)
         c += 1
     end
 end
 
-@testset "replace!" begin
-    ir, b = code_info(f, Tuple{Int})
-    len = length(b.code)
-    for (v, st) in b
-        (st isa Expr && st.head == :call) || continue
-        replace!(b, v, Expr(:call, Base.:(*), st.args[2 : end]...))
+@testset "setindex!" begin
+    ir = code_info(f, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
+    len = length(p.from.code)
+    for (v, st) in p
+        p[v] = st
     end
-    @test length(b.code) == len
-    for (v, st) in b
+    ir = finish(p)
+    @test length(p.to.code) == len
+    for (v, st) in CodeInfoTools.Pipe(ir)
         st isa Expr && st.head == :call || continue
-        @test st.args[1] == Base.:(*)
-        st == Expr(:call, Base.:(*), st.args[2 : end]...)
+        @test st.args[1] == Base.:(+)
     end
 end
 
 @testset "pushfirst!" begin
-    ir, b = code_info(f, Tuple{Int})
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    @test b[8] isa Core.ReturnNode
-    @test b[8].val == Core.SSAValue(7)
+    ir = code_info(f, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
+    pushfirst!(p, Expr(:call, rand))
+    @test length(p.to.code) == 1
+    pushfirst!(p, Expr(:call, rand))
+    @test length(p.to.code) == 2
+    pushfirst!(p, Expr(:call, rand))
+    @test length(p.to.code) == 3
 end
 
 @testset "push!" begin
-    ir, b = code_info(f, Tuple{Int})
-    c = deepcopy(b.code)
-    push!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    push!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    push!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    @test b.code[1 : end - 3] == c
-end
-
-@testset "bump!" begin
-    ir, b = code_info(f, Tuple{Int})
-    c = deepcopy(b.code)
-    len = length(b.code)
-    bump!(b, 1)
-    circshift!(b, -1)
-    @test c == b.code
-    bump!(b, 1)
-    @test b[5] isa Core.ReturnNode
-    @test b[5].val == Core.SSAValue(5)
-    circshift!(b, -1)
-    @test b[5].val == Core.SSAValue(4)
-end
-
-@testset "deleteat!" begin
-    ir, b = code_info(f, Tuple{Int})
-    len = length(b.code)
-    c = deepcopy(b.code)
-    insert!(b, 1, Expr(:call, Base.:(*), 5, 3))
-    insert!(b, Core.SSAValue(3), Expr(:call, Base.:(*), 5, 3))
-    deleteat!(b, 3)
-    deleteat!(b, 1)
-    @test length(b.code) == len
-    @test c == b.code
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    pushfirst!(b, Expr(:call, rand))
-    @test length(b.code) == length(b.codelocs)
-    deleteat!(b, Core.SSAValue(1))
-    deleteat!(b, 1)
-    deleteat!(b, Core.SSAValue(1))
-    @test c == b.code
-end
-
-@testset "pushslot!" begin
-    ir, b = code_info(f, Tuple{Int})
-    l = deepcopy(b.code)
-    pushslot!(b, :m)
-    @test b[1] isa Core.NewvarNode
-    @test slot(b, :m) == b[1].slot
-    deleteat!(b, 1)
-    c = deepcopy(b.slotnames)
-    for i in 1 : 50
-        pushslot!(b, gensym())
-        deleteat!(b, 1)
+    ir = code_info(f, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
+    c = deepcopy(p.from.code)
+    for (v, st) in p
     end
-    @test c == b.slotnames
-    @test l == b.code
+    push!(p, Expr(:call, rand))
+    @test length(p.to.code) == length(c) + 1
+    push!(p, Expr(:call, rand))
+    @test length(p.to.code) == length(c) + 2
+    push!(p, Expr(:call, rand))
+    @test length(p.to.code) == length(c) + 3
+    @test p[end - 3] isa Core.ReturnNode
+end
+
+@testset "delete!" begin
+    ir = code_info(f, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
+    len = length(p.from.code)
+    for (v, st) in p
+    end
+    display(p)
+    insert!(p, Core.SSAValue(1), Expr(:call, Base.:(*), 5, 3))
+    insert!(p, Core.SSAValue(3), Expr(:call, Base.:(*), 5, 3))
+    delete!(p, 3)
+    delete!(p, 1)
+    @test length(p.to.code) == len
+    @test CodeInfoTools.walk(CodeInfoTools.resolve, p.from.code) == finish(p).code
+    display(p)
+    pushfirst!(p, Expr(:call, rand))
+    pushfirst!(p, Expr(:call, rand))
+    display(p)
+    pushfirst!(p, Expr(:call, rand))
+    display(p)
+    delete!(p, 1)
+    delete!(p, 1)
+    delete!(p, 1)
+    display(p)
+    @test CodeInfoTools.walk(CodeInfoTools.resolve, p.from.code) == finish(p).code
 end
 
 @testset "Base.:(+) -- SSAValues" begin
