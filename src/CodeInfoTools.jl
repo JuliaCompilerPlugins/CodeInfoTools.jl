@@ -4,8 +4,10 @@ using Core: CodeInfo
 
 import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +
 
-Base.:(+)(v::Core.SSAValue, id::Int) = Core.SSAValue(v.id + id)
-Base.:(+)(id::Int, v::Core.SSAValue) = Core.SSAValue(v.id + id)
+const Variable = Core.SSAValue
+
+Base.:(+)(v::Variable, id::Int) = Variable(v.id + id)
+Base.:(+)(id::Int, v::Variable) = Variable(v.id + id)
 
 function code_info(f, tt; generated=true, debuginfo=:default)
     ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
@@ -21,7 +23,7 @@ Return lowered code for function `f` with tuple type `tt`. Equivalent to `Intera
 """, code_info)
 
 walk(fn, x) = fn(x)
-walk(fn, x::Core.SSAValue) = Core.SSAValue(fn(x.id))
+walk(fn, x::Variable) = Variable(fn(x.id))
 walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
 walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
 walk(fn, x::Core.GotoIfNot) = Core.GotoIfNot(walk(fn, x.cond), walk(fn, x.dest))
@@ -38,6 +40,10 @@ resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
 #####
 ##### Pipe
 #####
+
+struct NewVariable
+    id::Int
+end
 
 struct Canvas
     defs::Vector{Tuple{Int, Int}}
@@ -56,7 +62,7 @@ function push!(c::Canvas, stmt)
     push!(c.codelocs, Int32(1))
     l = length(c.defs) + 1
     push!(c.defs, (l, l))
-    return Core.SSAValue(length(c.defs))
+    return Variable(length(c.defs))
 end
 
 function insert!(c::Canvas, idx::Int, x)
@@ -69,7 +75,7 @@ function insert!(c::Canvas, idx::Int, x)
         end
     end
     push!(c.defs, (length(c.defs) + 1, idx))
-    return Core.SSAValue(length(c.defs))
+    return Variable(length(c.defs))
 end
 
 function delete!(c::Canvas, idx::Int)
@@ -81,12 +87,12 @@ function delete!(c::Canvas, idx::Int)
             c.defs[i] = (k, v - 1)
         end
     end
-    return Core.SSAValue(length(c.defs))
+    return Variable(length(c.defs))
 end
 
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
-setindex!(c::Canvas, x, v::Core.SSAValue) = setindex!(c.code, x, v.id)
+setindex!(c::Canvas, x, v::Variable) = setindex!(c.code, x, v.id)
 
 mutable struct Pipe
     from::CodeInfo
@@ -124,11 +130,11 @@ In the loop, inserting and deleting statements in `pr` around `v` is efficient.
 getindex(p::Pipe, v) = getindex(p.to, v)
 lastindex(p::Pipe) = length(p.to.defs)
 
-var!(p::Pipe) = Core.SSAValue(p.var += 1)
+var!(p::Pipe) = NewVariable(p.var += 1)
 
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x) = get(p.map, x, x)
-substitute(p::Pipe, x::Core.SSAValue) = p.map[x]
+substitute(p::Pipe, x::Variable) = p.map[x]
 substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
 substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
 substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
@@ -136,7 +142,7 @@ substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function pipestate(ci::CodeInfo)
-    ks = sort([Core.SSAValue(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
+    ks = sort([Variable(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
     return first.(ks)
 end
 
@@ -149,47 +155,22 @@ function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
 end
 
 _get(d, x, v) = x
-_get(d, x::Core.SSAValue, v) = get(d, x.id, v)
+_get(d, x::Variable, v) = get(d, x.id, v)
 
-function renumber(c::Canvas)
-    d = Dict(c.defs)
-    n = Canvas()
-    for (v, st) in enumerate(c.code)
-        push!(n.code, walk(x -> _get(d, x, x), st))
-        push!(n.defs, (v, v))
-        push!(n.codelocs, Int32(1))
+function renumber(c::CodeInfo)
+    p = Pipe(c)
+    for (v, st) in p
+        if isbits(st) # Trivial expressions can be inlined
+            delete!(p, v)
+            substitute!(p, v, substitute(p, st))
+        end
     end
-    return n
+    return finish(p)
 end
-
-@doc(
-"""
-    renumber(c::Canvas)
-
-Create a new `Canvas` instance with SSA values re-numbered and ordered linearly from `c.defs).
-""", renumber)
-
-function renumber!(c::Canvas)
-    d = Dict(c.defs)
-    for (v, st) in enumerate(c.code)
-        setindex!(c.code, walk(x -> _get(d, x, x), st), v)
-        setindex!(c.defs, (v, v), v)
-        setindex!(c.codelocs, Int32(1), v)
-    end
-    return c
-end
-
-@doc(
-"""
-    renumber!(c::Canvas)
-
-In place version of [`renumber`](@ref).
-""", renumber!)
 
 function finish(p::Pipe)
-    c = renumber!(p.to)
     new_ci = copy(p.from)
-    new_ci.code = c.code
+    new_ci.code = p.to.code
     new_ci.codelocs = p.to.codelocs
     new_ci.slotnames = p.from.slotnames
     new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
@@ -209,7 +190,7 @@ Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `C
 islastdef(c::Canvas, v) = v == length(c.defs)
 
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
-function setindex!(p::Pipe, x, v::Core.SSAValue)
+function setindex!(p::Pipe, x, v::Variable)
     v′= substitute(p, v)
     if islastdef(p.to, v′)
         delete!(p, v)

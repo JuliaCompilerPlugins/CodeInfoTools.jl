@@ -22,6 +22,16 @@ g(x) = begin
     return
 end
 
+function fn(x, y)
+    z = 10
+    if z > 10
+        n = 10
+        return x + y
+    else
+        return x + y + z
+    end
+end
+
 @testset "code_info" begin
     ir = code_info(f, Int)
     @test ir == nothing
@@ -128,8 +138,6 @@ end
     len = length(p.from.code)
     for (v, st) in p
     end
-    display(p)
-    renumber(p.to)
     display(p)
     insert!(p, Core.SSAValue(1), Expr(:call, Base.:(*), 5, 3))
     insert!(p, Core.SSAValue(3), Expr(:call, Base.:(*), 5, 3))
