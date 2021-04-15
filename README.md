@@ -56,7 +56,7 @@ Fear no longer, my intuitive friend! We present `CodeInfoTools.jl` to assuage yo
 
 ## Contribution
 
-`CodeInfoTools.jl` provides an IR `Pipe` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
+`CodeInfoTools.jl` provides an `Pipe` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
 
 ```julia
 struct Canvas

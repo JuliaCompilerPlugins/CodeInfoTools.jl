@@ -2,9 +2,21 @@ module CodeInfoTools
 
 using Core: CodeInfo 
 
-import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +
+import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length
+import Base: show
+
+#####
+##### Exports
+#####
+
+export var, Variable, Canvas, renumber, code_info, finish
+
+#####
+##### Utilities
+#####
 
 const Variable = Core.SSAValue
+var(id::Int) = Variable(id)
 
 Base.:(+)(v::Variable, id::Int) = Variable(v.id + id)
 Base.:(+)(id::Int, v::Variable) = Variable(v.id + id)
@@ -23,7 +35,7 @@ Return lowered code for function `f` with tuple type `tt`. Equivalent to `Intera
 """, code_info)
 
 walk(fn, x) = fn(x)
-walk(fn, x::Variable) = Variable(fn(x.id))
+walk(fn, x::Variable) = fn(x)
 walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
 walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
 walk(fn, x::Core.GotoIfNot) = Core.GotoIfNot(walk(fn, x.cond), walk(fn, x.dest))
@@ -38,12 +50,8 @@ resolve(x) = x
 resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
 
 #####
-##### Pipe
+##### Canvas
 #####
-
-struct NewVariable
-    id::Int
-end
 
 struct Canvas
     defs::Vector{Tuple{Int, Int}}
@@ -51,11 +59,41 @@ struct Canvas
     codelocs::Vector{Int32}
 end
 Canvas() = Canvas(Tuple{Int, Int}[], Any[], Int32[])
-function getindex(c::Canvas, v)
-    ind = findfirst(k -> k[2] == v, c.defs)
-    ind == nothing && return
-    getindex(c.code, ind)
+
+@doc(
+"""
+```julia
+struct Canvas
+    defs::Vector{Int}
+    code::Vector{Any}
+    codelocs::Vector{Int32}
 end
+Canvas() = Canvas(Int[], Any[], Int32[])
+```
+
+A `Vector`-like abstraction for `Core` code nodes.
+
+Properties to keep in mind:
+
+1. Insertion anywhere is slow.
+2. Pushing to beginning is slow.
+2. Pushing to end is fast.
+3. Deletion is fast. 
+4. Accessing elements is fast.
+5. Setting elements is fast.
+6. Calling `renumber` must walk the entire `Canvas` instance to update SSA values -- slow.
+
+Thus, if you build up a `Canvas` instance incrementally, everything should be fast.
+""", Canvas)
+
+length(c::Canvas) = length(filter(x -> x[2] > 0, c.defs))
+
+function getindex(c::Canvas, idx::Int)
+    r, ind = c.defs[idx]
+    @assert ind > 0
+    getindex(c.code, r)
+end
+getindex(c::Canvas, v::Variable) = getindex(c, v.id)
 
 function push!(c::Canvas, stmt)
     push!(c.code, stmt)
@@ -66,34 +104,102 @@ function push!(c::Canvas, stmt)
 end
 
 function insert!(c::Canvas, idx::Int, x)
-    insert!(c.code, idx, x)
-    insert!(c.codelocs, idx, Int32(1))
+    r, ind = c.defs[idx]
+    @assert(ind > 0)
+    push!(c.code, x)
+    push!(c.codelocs, Int32(1))
     for i in 1 : length(c.defs)
-        k, v = c.defs[i]
-        if v >= idx
-            c.defs[i] = (k, v + 1)
+        r, k = c.defs[i]
+        if k > 0 && k >= ind
+            c.defs[i] = (r, k + 1)
         end
     end
-    push!(c.defs, (length(c.defs) + 1, idx))
+    push!(c.defs, (length(c.defs) + 1, ind))
     return Variable(length(c.defs))
 end
-
-function delete!(c::Canvas, idx::Int)
-    deleteat!(c.code, idx)
-    deleteat!(c.codelocs, idx)
-    for i in 1 : length(c.defs)
-        k, v = c.defs[i]
-        if v > idx
-            c.defs[i] = (k, v - 1)
-        end
-    end
-    return Variable(length(c.defs))
-end
-delete!(c::Canvas, v::Union{Variable, NewVariable}) = delete!(c, v.id)
+insert!(c::Canvas, v::Variable, x) = insert!(c, v.id, x)
 
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
-setindex!(c::Canvas, x, v::Variable) = setindex!(c.code, x, v.id)
+setindex!(c::Canvas, x, v::Int) = setindex!(c.code, x, v)
+setindex!(c::Canvas, x, v::Variable) = setindex!(c, x, v.id)
+
+function delete!(c::Canvas, idx::Int)
+    c.code[idx] = nothing
+    c.defs[idx] = (idx, -1)
+end
+delete!(c::Canvas, v::Variable) = delete!(c, v.id)
+
+_get(d::Dict, c, k) = c
+_get(d::Dict, c::Variable, k) = haskey(d, c.id) ? Variable(getindex(d, c.id)) : nothing
+
+function renumber(c::Canvas)
+    s = sort(filter(v -> v[2] > 0, c.defs); by = x -> x[2])
+    d = Dict((s[i][1], i) for  i in 1 : length(s))
+    ind = first.(s)
+    swap = walk(k -> _get(d, k, k), c.code)
+    return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)], 
+        getindex(swap, ind), getindex(c.codelocs, ind))
+end
+
+#####
+##### Pretty printing
+#####
+
+function Base.show(io::IO, x::Variable)
+    bs = get(io, :bindings, Dict())
+    haskey(bs, x) ? print(io, bs[x]) : print(io, "%", x.id)
+end
+
+print_stmt(io::IO, ex) = print(io, ex)
+print_stmt(io::IO, ex::Expr) = print_stmt(io::IO, Val(ex.head), ex)
+
+const tab = "  "
+
+function show(io::IO, c::Canvas)
+    indent = get(io, :indent, 0)
+    bs = get(io, :bindings, Dict())
+    for (r, ind) in sort(c.defs; by = x -> x[2])
+        ind > 0 || continue
+        println(io)
+        print(io, tab^indent, "  ")
+        print(io, string("%", r), " = ")
+        ex = get(c.code, r, nothing)
+        ex == nothing ? print(io, "nothing") : print_stmt(io, ex)
+    end
+end
+
+print_stmt(io::IO, ::Val, ex) = print(io, ex)
+
+function print_stmt(io::IO, ::Val{:enter}, ex)
+    print(io, "try (outer %$(ex.args[1]))")
+end
+
+function print_stmt(io::IO, ::Val{:leave}, ex)
+    print(io, "end try (start %$(ex.args[1]))")
+end
+
+function print_stmt(io::IO, ::Val{:catch}, ex)
+    print(io, "catch $(ex.args[1])")
+    args = ex.args[2:end]
+    if !isempty(args)
+        print(io, " (")
+        join(io, args, ", ")
+        print(io, ")")
+    end
+end
+
+function print_stmt(io::IO, ::Val{:pop_exception}, ex)
+    print(io, "pop exception $(ex.args[1])")
+end
+
+#####
+##### Pipe
+#####
+
+struct NewVariable
+    id::Int
+end
 
 mutable struct Pipe
     from::CodeInfo
@@ -103,7 +209,7 @@ mutable struct Pipe
 end
 
 function Pipe(ci::CodeInfo)
-    canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+    canv = Canvas()
     p = Pipe(ci, canv, Dict(), 0)
     return p
 end
@@ -112,35 +218,27 @@ end
 """
     Pipe(ir)
 
-A wrapper around a `Canvas` object -- allow incremental construction of `CodeInfo`. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
-
-In general, it is not efficient to insert statements onto your working `Canvas`; only appending is
-fast, for the same reason as with `Vector`s.
-For this reason, the `Pipe` construct makes it convenient to incrementally build a `Canvas` fragment from a piece of `CodeInfo`, making efficient modifications as you go.
-The general pattern looks like:
-```julia
-pr = CodeInfoTools.Pipe(ir)
-for (v, st) in pr
-  # do stuff
-end
-ir = CodeInfoTools.finish(pr)
-```
-In the loop, inserting and deleting statements in `pr` around `v` is efficient.
+A wrapper around a `Canvas` object. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Pipe)
 
-getindex(p::Pipe, v) = getindex(p.to, v)
-lastindex(p::Pipe) = length(p.to.defs)
-
-var!(p::Pipe) = NewVariable(p.var += 1)
-
+# This is used to handle NewVariable instances.
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x) = get(p.map, x, x)
-substitute(p::Pipe, x::Variable) = p.map[x]
 substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
 substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
 substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
 substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
 substitute(p::Pipe) = x -> substitute(p, x)
+
+length(p::Pipe) = length(p.to)
+
+getindex(p::Pipe, v) = getindex(p.to, v)
+function getindex(p::Pipe, v::Union{Variable, NewVariable})
+    tg = substitute(p, v).id
+    return getindex(p, tg)
+end
+
+lastindex(p::Pipe) = length(p.to)
 
 function pipestate(ci::CodeInfo)
     ks = sort([Variable(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
@@ -155,44 +253,12 @@ function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
     return ((v, st), (ks, i + 1))
 end
 
-_get(d, x, v) = x
-_get(d, x::Variable, v) = get(d, x.id, v)
-
-function finish(p::Pipe)
-    new_ci = copy(p.from)
-    new_ci.code = p.to.code
-    new_ci.codelocs = p.to.codelocs
-    new_ci.slotnames = p.from.slotnames
-    new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
-    new_ci.inferred = false
-    new_ci.inlineable = p.from.inlineable
-    new_ci.ssavaluetypes = length(p.to.code)
-    return new_ci
-end
-
-@doc(
-"""
-    finish(p::Pipe)
-
-Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
-""", finish)
-
-islastdef(c::Canvas, v) = v == length(c.defs)
-
-setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
-function setindex!(p::Pipe, x, v::Variable)
-    v′= substitute(p, v)
-    if islastdef(p.to, v′)
-        delete!(p, v)
-        substitute!(p, v, substitute(p, x))
-    else
-        p.to[v′] = substitute(p, x)
-    end
-end
+var!(p::Pipe) = NewVariable(p.var += 1)
 
 function Base.push!(p::Pipe, x)
     tmp = var!(p)
-    substitute!(p, tmp, push!(p.to, substitute(p, x)))
+    v = push!(p.to, substitute(p, x))
+    substitute!(p, tmp, v)
     return tmp
 end
 
@@ -203,41 +269,48 @@ function Base.pushfirst!(p::Pipe, x)
     return tmp
 end
 
-function Base.delete!(p::Pipe, v)
-    v′ = substitute(p, v)
-    delete!(p.map, v)
-    if islastdef(p.to, v′)
-        pop!(p.to.defs)
-        pop!(p.to.code)
-    else
-        delete!(p.to, v′)
-    end
+setindex!(p::Pipe, x, v::Int) = setindex!(p.to, x, v)
+function setindex!(p::Pipe, x, v::Union{Variable, NewVariable})
+    k = substitute(p, v).id
+    setindex!(p, substitute(p, x), k)
 end
 
-function insert!(p::Pipe, v, x::T; after = false) where T
-    v′ = substitute(p, v)
+islastdef(c::Canvas, v::Int) = v == length(c)
+islastdef(p::Pipe, v::Variable) = islastdef(p.to, v.id)
+
+function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
+    v′ = substitute(p, v).id
     x = substitute(p, x)
     tmp = var!(p)
-    if islastdef(p.to, v′)
-        if after
-            substitute!(p, tmp, push!(p.to, x))
-        else
-            substitute!(p, v, push!(p.to, p.to[v′]))
-            p.to[v′] = T(x)
-            substitute!(p, tmp, v′)
-        end
-    else
-        substitute!(p, tmp, insert!(p.to, v′.id + Int(after), x))
-    end
+    substitute!(p, tmp, insert!(p.to, v′ + after, x))
     return tmp
 end
 
-Base.display(p::Pipe) = display(finish(p))
+function Base.delete!(p::Pipe, v::Union{Variable, NewVariable})
+    v′ = substitute(p, v).id
+    delete!(p.to, v′)
+end
 
-#####
-##### Exports
-#####
+function finish(p::Pipe)
+    new_ci = copy(p.from)
+    c = renumber(p.to)
+    new_ci.code = c.code
+    new_ci.codelocs = c.codelocs
+    new_ci.slotnames = p.from.slotnames
+    new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
+    new_ci.inferred = false
+    new_ci.inlineable = p.from.inlineable
+    new_ci.ssavaluetypes = length(p.to)
+    return new_ci
+end
 
-export code_info, finish
+@doc(
+"""
+    finish(p::Pipe)
+
+Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
+""", finish)
+
+Base.display(p::Pipe) = display(p.to)
 
 end # module
