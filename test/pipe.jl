@@ -10,15 +10,18 @@ f(x) = begin
 end
 
 function g(x)
-    if x > 1
-        x + g(x - 1)
-    else
-        return 1
+    try
+        if x > 1
+            x + g(x - 1)
+        else
+            return 1
+        end
+        while true
+            println("Nice!")
+        end
+        return
+    catch
     end
-    while true
-        println("Nice!")
-    end
-    return
 end
 
 function fn(x, y)
@@ -37,6 +40,7 @@ end
     local c = 1
     for (v, st) in p
         @test v == var(c)
+        println(getindex(p, v))
         c += 1
     end
     ir = code_info(g, Tuple{Int})
@@ -142,4 +146,12 @@ end
 @testset "Base.:(+) -- SSAValues" begin
     @test (+)(Core.SSAValue(1), 1) == Core.SSAValue(2)
     @test (+)(1, Core.SSAValue(1)) == Core.SSAValue(2)
+end
+
+@testset "Pipe -- misc." begin
+    ir = code_info(g, Tuple{Int})
+    p = CodeInfoTools.Pipe(ir)
+    for (v, st) in p
+    end
+    display(p)
 end

@@ -146,11 +146,6 @@ end
 ##### Pretty printing
 #####
 
-function Base.show(io::IO, x::Variable)
-    bs = get(io, :bindings, Dict())
-    haskey(bs, x) ? print(io, bs[x]) : print(io, "%", x.id)
-end
-
 print_stmt(io::IO, ex) = print(io, ex)
 print_stmt(io::IO, ex::Expr) = print_stmt(io::IO, Val(ex.head), ex)
 
@@ -228,7 +223,6 @@ substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
 substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
 substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
 substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
-substitute(p::Pipe) = x -> substitute(p, x)
 
 length(p::Pipe) = length(p.to)
 
@@ -274,9 +268,6 @@ function setindex!(p::Pipe, x, v::Union{Variable, NewVariable})
     k = substitute(p, v).id
     setindex!(p, substitute(p, x), k)
 end
-
-islastdef(c::Canvas, v::Int) = v == length(c)
-islastdef(p::Pipe, v::Variable) = islastdef(p.to, v.id)
 
 function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
     v′ = substitute(p, v).id
