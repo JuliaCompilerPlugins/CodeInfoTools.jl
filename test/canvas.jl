@@ -104,3 +104,13 @@ end
     @test c[3] == Expr(:call, +, 25, 25)
     @test c[4] == Expr(:call, +, 5, 5)
 end
+
+@testset "Canvas -- misc." begin
+    c = Canvas()
+    push!(c, Expr(:call, +, 5, 5))
+    pushfirst!(c, Expr(:call, +, 10, 10))
+    pushfirst!(c, Expr(:call, +, 15, 15))
+    pushfirst!(c, Expr(:call, +, 20, 20))
+    pushfirst!(c, Expr(:call, +, 25, 25))
+    insert!(c, var(1), Expr(:call, rand))
+end

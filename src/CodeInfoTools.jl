@@ -174,16 +174,6 @@ function print_stmt(io::IO, ::Val{:leave}, ex)
     print(io, "end try (start %$(ex.args[1]))")
 end
 
-function print_stmt(io::IO, ::Val{:catch}, ex)
-    print(io, "catch $(ex.args[1])")
-    args = ex.args[2:end]
-    if !isempty(args)
-        print(io, " (")
-        join(io, args, ", ")
-        print(io, ")")
-    end
-end
-
 function print_stmt(io::IO, ::Val{:pop_exception}, ex)
     print(io, "pop exception $(ex.args[1])")
 end
