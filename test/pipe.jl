@@ -20,7 +20,8 @@ function g(x)
             println("Nice!")
         end
         return
-    catch
+    catch e
+        return 0
     end
 end
 
@@ -154,4 +155,5 @@ end
     for (v, st) in p
     end
     display(p)
+    display(length(p))
 end

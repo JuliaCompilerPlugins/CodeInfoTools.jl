@@ -228,8 +228,8 @@ length(p::Pipe) = length(p.to)
 
 getindex(p::Pipe, v) = getindex(p.to, v)
 function getindex(p::Pipe, v::Union{Variable, NewVariable})
-    tg = substitute(p, v).id
-    return getindex(p, tg)
+    tg = substitute(p, v)
+    return getindex(p.to, tg)
 end
 
 lastindex(p::Pipe) = length(p.to)
@@ -263,10 +263,9 @@ function Base.pushfirst!(p::Pipe, x)
     return tmp
 end
 
-setindex!(p::Pipe, x, v::Int) = setindex!(p.to, x, v)
 function setindex!(p::Pipe, x, v::Union{Variable, NewVariable})
-    k = substitute(p, v).id
-    setindex!(p, substitute(p, x), k)
+    k = substitute(p, v)
+    setindex!(p.to, substitute(p, x), k)
 end
 
 function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
@@ -278,7 +277,7 @@ function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
 end
 
 function Base.delete!(p::Pipe, v::Union{Variable, NewVariable})
-    v′ = substitute(p, v).id
+    v′ = substitute(p, v)
     delete!(p.to, v′)
 end
 
