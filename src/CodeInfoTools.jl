@@ -2,7 +2,7 @@ module CodeInfoTools
 
 using Core: CodeInfo 
 
-import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length
+import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length, identity
 import Base: show
 
 #####
@@ -25,6 +25,12 @@ function code_info(f, tt; generated=true, debuginfo=:default)
     ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
     isempty(ir) && return nothing
     return ir[1]
+end
+
+function get_slot(ci::CodeInfo, s::Symbol)
+    ind = findfirst(ci.slotnames, s)
+    ind == nothing && return 
+    return Core.Compiler.SlotNumber(ind)
 end
 
 @doc(
@@ -206,6 +212,8 @@ end
 A wrapper around a `Canvas` object. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Pipe)
 
+get_slot(p::Pipe, s::Symbol) = get_slot(p.from, s)
+
 # This is used to handle NewVariable instances.
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
 substitute(p::Pipe, x) = get(p.map, x, x)
@@ -292,5 +300,10 @@ Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `C
 """, finish)
 
 Base.display(p::Pipe) = display(p.to)
+function Base.identity(p::Pipe)
+    for (v, st) in p
+    end
+    return p
+end
 
 end # module
