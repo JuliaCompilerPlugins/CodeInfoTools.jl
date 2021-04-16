@@ -9,7 +9,7 @@ import Base: show
 ##### Exports
 #####
 
-export var, Variable, Canvas, renumber, code_info, finish
+export var, Variable, Canvas, renumber, code_info, finish, get_slot
 
 #####
 ##### Utilities
@@ -28,7 +28,7 @@ function code_info(f, tt; generated=true, debuginfo=:default)
 end
 
 function get_slot(ci::CodeInfo, s::Symbol)
-    ind = findfirst(ci.slotnames, s)
+    ind = findfirst(el -> el == s, ci.slotnames)
     ind == nothing && return 
     return Core.Compiler.SlotNumber(ind)
 end
