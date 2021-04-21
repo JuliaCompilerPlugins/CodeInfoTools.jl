@@ -4,13 +4,13 @@
 |:------------------------------------------------------:|:-------------------------------:|:-----------------:|
 | [![][gha-1.6-img]][gha-url] [![][gha-nightly-img]][gha-url] | [![][codecov-img]][codecov-url] | [![][dev-docs-img]][dev-docs-url] |
 
-[gha-1.6-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/julia-1.6/badge.svg
-[gha-nightly-img]: https://github.com/femtomc/CodeInfoTools.jl/workflows/julia-nightly/badge.svg
-[gha-url]: https://github.com/femtomc/CodeInfoTools.jl/actions
-[codecov-img]: https://codecov.io/github/femtomc/CodeInfoTools.jl/badge.svg?branch=master
-[codecov-url]: https://codecov.io/github/femtomc/CodeInfoTools.jl?branch=master
+[gha-1.6-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/julia-1.6/badge.svg
+[gha-nightly-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/julia-nightly/badge.svg
+[gha-url]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/actions
+[codecov-img]: https://codecov.io/github/JuliaCompilerPlugins/CodeInfoTools.jl/badge.svg?branch=master
+[codecov-url]: https://codecov.io/github/JuliaCompilerPlugins/CodeInfoTools.jl?branch=master
 [dev-docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[dev-docs-url]: https://femtomc.github.io/CodeInfoTools.jl/dev
+[dev-docs-url]: https://JuliaCompilerPlugins.github.io/CodeInfoTools.jl/dev
 
 ```
 ] add CodeInfoTools

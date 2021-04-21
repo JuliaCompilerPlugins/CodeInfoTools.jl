@@ -7,4 +7,4 @@ makedocs(; modules=[CodeInfoTools], sitename="CodeInfoTools",
          format = Documenter.HTML(prettyurls = true),
          clean = true)
 
-deploydocs(; repo="github.com/femtomc/CodeInfoTools.jl.git", push_preview=true)
+deploydocs(; repo="github.com/JuliaCompilerPlugins/CodeInfoTools.jl.git", push_preview=true)

@@ -1,6 +1,6 @@
 # API Documentation
 
-Below is the API documentation for [CodeInfoTools.jl](https://github.com/femtomc/CodeInfoTools.jl)
+Below is the API documentation for [CodeInfoTools.jl](https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl)
 
 ```@meta
 CurrentModule = CodeInfoTools
