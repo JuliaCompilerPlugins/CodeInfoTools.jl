@@ -121,7 +121,6 @@ Properties to keep in mind:
 3. Deletion is fast. 
 4. Accessing elements is fast.
 5. Setting elements is fast.
-6. Calling `renumber` must walk the entire `Canvas` instance to update SSA values -- slow.
 
 Thus, if you build up a `Canvas` instance incrementally, everything should be fast.
 """, Canvas)
@@ -273,98 +272,113 @@ end
 A wrapper around a `Canvas` object. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Builder)
 
-get_slot(p::Builder, s::Symbol) = get_slot(p.from, s)
+get_slot(b::Builder, s::Symbol) = get_slot(b.from, s)
 
 # This is used to handle NewVariable instances.
-substitute!(p::Builder, x, y) = (p.map[x] = y; x)
-substitute(p::Builder, x) = get(p.map, x, x)
-substitute(p::Builder, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
-substitute(p::Builder, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
-substitute(p::Builder, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
-substitute(p::Builder, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
+substitute!(b::Builder, x, y) = (b.map[x] = y; x)
+substitute(b::Builder, x) = get(b.map, x, x)
+substitute(b::Builder, x::Expr) = Expr(x.head, substitute.((b, ), x.args)...)
+substitute(b::Builder, x::Core.GotoNode) = Core.GotoNode(substitute(b, x.label))
+substitute(b::Builder, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(b, x.cond), substitute(b, x.dest))
+substitute(b::Builder, x::Core.ReturnNode) = Core.ReturnNode(substitute(b, x.val))
 
-length(p::Builder) = length(p.to)
+length(b::Builder) = length(b.to)
 
-getindex(p::Builder, v) = getindex(p.to, v)
-function getindex(p::Builder, v::Union{Variable, NewVariable})
-    tg = substitute(p, v)
-    return getindex(p.to, tg)
+getindex(b::Builder, v) = getindex(b.to, v)
+function getindex(b::Builder, v::Union{Variable, NewVariable})
+    tg = substitute(b, v)
+    return getindex(b.to, tg)
 end
 
-lastindex(p::Builder) = length(p.to)
+lastindex(b::Builder) = length(b.to)
 
 function pipestate(ci::CodeInfo)
     ks = sort([Variable(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
     return first.(ks)
 end
 
-function iterate(p::Builder, (ks, i) = (pipestate(p.from), 1))
+function iterate(b::Builder, (ks, i) = (pipestate(b.from), 1))
     i > length(ks) && return
     v = ks[i]
-    st = walk(resolve, p.from.code[v.id])
-    substitute!(p, v, push!(p.to, substitute(p, st)))
+    st = walk(resolve, b.from.code[v.id])
+    substitute!(b, v, push!(b.to, substitute(b, st)))
     return ((v, st), (ks, i + 1))
 end
 
-var!(p::Builder) = NewVariable(p.var += 1)
+@doc(
+"""
+    iterate(b::Builder, (ks, i) = (pipestate(p.from), 1))
 
-function Base.push!(p::Builder, x)
-    tmp = var!(p)
-    v = push!(p.to, substitute(p, x))
-    substitute!(p, tmp, v)
+Iterate over the original `CodeInfo` and add statements to a target `Canvas` held by `b::Builder`. `iterate` builds the `Canvas` in place -- it also resolves local `GlobalRef` instances to their global values and inlines them at the head of `Expr(:call, ...)` instances. `iterate` is the key to expressing idioms like:
+
+```julia
+for (v, st) in b
+    b[v] = swap(st)
+end
+```
+
+At each step of the iteration, a new node is copied from the original `CodeInfo` to the target `Canvas` -- and the user is allowed to `setindex!`, `push!`, or otherwise change the target `Canvas` before the next iteration. The naming of `Core.SSAValues` is taken care of to allow this.
+""", iterate)
+
+var!(b::Builder) = NewVariable(b.var += 1)
+
+function Base.push!(b::Builder, x)
+    tmp = var!(b)
+    v = push!(b.to, substitute(b, x))
+    substitute!(b, tmp, v)
     return tmp
 end
 
-function Base.pushfirst!(p::Builder, x)
-    tmp = var!(p)
-    v = pushfirst!(p.to, substitute(p, x))
-    substitute!(p, tmp, v)
+function Base.pushfirst!(b::Builder, x)
+    tmp = var!(b)
+    v = pushfirst!(b.to, substitute(b, x))
+    substitute!(b, tmp, v)
     return tmp
 end
 
-function setindex!(p::Builder, x, v::Union{Variable, NewVariable})
-    k = substitute(p, v)
-    setindex!(p.to, substitute(p, x), k)
+function setindex!(b::Builder, x, v::Union{Variable, NewVariable})
+    k = substitute(b, v)
+    setindex!(b.to, substitute(b, x), k)
 end
 
-function insert!(p::Builder, v::Union{Variable, NewVariable}, x; after = false)
-    v′ = substitute(p, v).id
-    x = substitute(p, x)
-    tmp = var!(p)
-    substitute!(p, tmp, insert!(p.to, v′ + after, x))
+function insert!(b::Builder, v::Union{Variable, NewVariable}, x; after = false)
+    v′ = substitute(b, v).id
+    x = substitute(b, x)
+    tmp = var!(b)
+    substitute!(b, tmp, insert!(b.to, v′ + after, x))
     return tmp
 end
 
-function Base.delete!(p::Builder, v::Union{Variable, NewVariable})
-    v′ = substitute(p, v)
-    delete!(p.to, v′)
+function Base.delete!(b::Builder, v::Union{Variable, NewVariable})
+    v′ = substitute(b, v)
+    delete!(b.to, v′)
 end
 
-function finish(p::Builder)
-    new_ci = copy(p.from)
-    c = renumber(p.to)
+function finish(b::Builder)
+    new_ci = copy(b.from)
+    c = renumber(b.to)
     new_ci.code = map(unwrap, c.code)
     new_ci.codelocs = c.codelocs
-    new_ci.slotnames = p.from.slotnames
+    new_ci.slotnames = b.from.slotnames
     new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
     new_ci.inferred = false
-    new_ci.inlineable = p.from.inlineable
-    new_ci.ssavaluetypes = length(p.to)
+    new_ci.inlineable = b.from.inlineable
+    new_ci.ssavaluetypes = length(b.to)
     return new_ci
 end
 
 @doc(
 """
-    finish(p::Builder)
+    finish(b::Builder)
 
 Create a new `CodeInfo` instance from a [`Builder`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
 """, finish)
 
-Base.display(p::Builder) = display(p.to)
-function Base.identity(p::Builder)
-    for (v, st) in p
+Base.display(b::Builder) = display(b.to)
+function Base.identity(b::Builder)
+    for (v, st) in b
     end
-    return p
+    return b
 end
 
 end # module

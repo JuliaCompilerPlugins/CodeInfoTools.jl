@@ -11,7 +11,6 @@ code_info
 Statement
 Canvas
 Builder
-renumber
-renumber!
+iterate
 finish
 ```
