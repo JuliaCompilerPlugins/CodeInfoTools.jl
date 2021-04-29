@@ -27,6 +27,13 @@ function code_info(f, tt; generated=true, debuginfo=:default)
     return ir[1]
 end
 
+@doc(
+"""
+    code_info(f, tt; generate = true, debuginfo = :default)
+
+Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
+""", code_info)
+
 function get_slot(ci::CodeInfo, s::Symbol)
     ind = findfirst(el -> el == s, ci.slotnames)
     ind == nothing && return 
@@ -35,10 +42,10 @@ end
 
 @doc(
 """
-    code_info(f, tt; generate = true, debuginfo = :default)
+    get_slot(ci::CodeInfo, s::Symbol)
 
-Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
-""", code_info)
+Get the `Core.Compiler.SlotNumber` associated with the `s::Symbol` in `ci::CodeInfo`. If there is no associated `Core.Compiler.SlotNumber`, returns `nothing`.
+""", get_slot)
 
 walk(fn, x) = fn(x)
 walk(fn, x::Variable) = fn(x)
@@ -51,6 +58,13 @@ function walk(fn, x::Vector)
         walk(fn, el)
     end
 end
+
+@doc(
+"""
+    walk(fn::Function, x)
+
+A generic dispatch-based tree-walker which applies `fn::Function` to `x`, specialized to `Code` node types (like `Core.ReturnNode`, `Core.GotoNode`, `Core.GotoIfNot`, etc). Applies `fn::Function` to sub-fields of nodes, and then zips the result back up into the node.
+""", walk)
 
 resolve(x) = x
 resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
@@ -68,6 +82,16 @@ unwrap(stmt::Statement) = stmt.node
 walk(fn, stmt::Statement{T}) where T = Statement(walk(fn, stmt.node), stmt.type)
 
 const stmt = Statement
+
+@doc(
+"""
+    struct Statement{T}
+        node::T
+        type::Any
+    end
+
+A wrapper around `Core` nodes with an optional `type` field to allow for user-based local propagation and other forms of analysis. Usage of `Builder` or `Canvas` will automatically wrap or unwrap nodes when inserting or calling `finish` -- so the user should never see `Statement` instances directly unless they are working on type propagation.
+""", Statement)
 
 struct Canvas
     defs::Vector{Tuple{Int, Int}}

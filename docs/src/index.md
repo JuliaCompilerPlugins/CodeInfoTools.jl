@@ -8,7 +8,9 @@ CurrentModule = CodeInfoTools
 
 ```@docs
 code_info
-Pipe
+Statement
+Canvas
+Builder
 renumber
 renumber!
 finish
