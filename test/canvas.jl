@@ -13,7 +13,7 @@
     for i in 1 : 5
         @test c.defs[i] == (i, i)
         @test c.codelocs[i] == Int32(1)
-        @test getindex(c, i) == Expr(:call, rand)
+        @test unwrap(getindex(c, i)) == Expr(:call, rand)
     end
 end
 
@@ -51,17 +51,17 @@ end
     push!(c, Expr(:call, +, 25, 25))
     delete!(c, 4)
     @test c.defs == [(1,1), (2,2), (3,3), (4, -1), (5, 5)]
-    @test c[1] == Expr(:call, +, 5, 5)
-    @test c[2] == Expr(:call, +, 10, 10)
-    @test c[3] == Expr(:call, +, 15, 15)
-    @test c[5] == Expr(:call, +, 25, 25)
+    @test unwrap(c[1]) == Expr(:call, +, 5, 5)
+    @test unwrap(c[2]) == Expr(:call, +, 10, 10)
+    @test unwrap(c[3]) == Expr(:call, +, 15, 15)
+    @test unwrap(c[5]) == Expr(:call, +, 25, 25)
     push!(c, Expr(:call, +, 10, 10))
     delete!(c, 4)
     @test c.defs == [(1,1), (2,2), (3,3), (4, -1), (5, 5), (6, 6)]
-    @test c[1] == Expr(:call, +, 5, 5)
-    @test c[2] == Expr(:call, +, 10, 10)
-    @test c[3] == Expr(:call, +, 15, 15)
-    @test c[6] == Expr(:call, +, 10, 10)
+    @test unwrap(c[1]) == Expr(:call, +, 5, 5)
+    @test unwrap(c[2]) == Expr(:call, +, 10, 10)
+    @test unwrap(c[3]) == Expr(:call, +, 15, 15)
+    @test unwrap(c[6]) == Expr(:call, +, 10, 10)
 end
 
 @testset "Canvas -- setindex!" begin
@@ -72,17 +72,17 @@ end
     pushfirst!(c, Expr(:call, +, 20, 20))
     pushfirst!(c, Expr(:call, +, 25, 25))
     
-    @test getindex(c, 1) == Expr(:call, +, 5, 5)
+    @test unwrap(getindex(c, 1)) == Expr(:call, +, 5, 5)
     setindex!(c, Expr(:call, *, 10, 10), 1)
-    @test getindex(c, 1) == Expr(:call, *, 10, 10)
+    @test unwrap(getindex(c, 1)) == Expr(:call, *, 10, 10)
     
-    @test getindex(c, 2) == Expr(:call, +, 10, 10)
+    @test unwrap(getindex(c, 2)) == Expr(:call, +, 10, 10)
     setindex!(c, Expr(:call, *, 5, 5), 2)
-    @test getindex(c, 2) == Expr(:call, *, 5, 5)
+    @test unwrap(getindex(c, 2)) == Expr(:call, *, 5, 5)
     
-    @test getindex(c, 3) == Expr(:call, +, 15, 15)
+    @test unwrap(getindex(c, 3)) == Expr(:call, +, 15, 15)
     setindex!(c, Expr(:call, *, 10, 10), 3)
-    @test getindex(c, 3) == Expr(:call, *, 10, 10)
+    @test unwrap(getindex(c, 3)) == Expr(:call, *, 10, 10)
 end
 
 @testset "Canvas -- renumber" begin
@@ -99,10 +99,10 @@ end
     display(c)
     println()
     @test c.defs == [(1, 1), (2, 2), (3, 3), (4, 4)]
-    @test c[1] == Expr(:call, +, 10, 10)
-    @test c[2] == Expr(:call, +, 15, 15)
-    @test c[3] == Expr(:call, +, 25, 25)
-    @test c[4] == Expr(:call, +, 5, 5)
+    @test unwrap(c[1]) == Expr(:call, +, 10, 10)
+    @test unwrap(c[2]) == Expr(:call, +, 15, 15)
+    @test unwrap(c[3]) == Expr(:call, +, 25, 25)
+    @test unwrap(c[4]) == Expr(:call, +, 5, 5)
 end
 
 @testset "Canvas -- misc." begin

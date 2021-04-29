@@ -92,7 +92,7 @@ end
     @test length(p.to.code) == length(c) + 2
     push!(p, Expr(:call, rand))
     @test length(p.to.code) == length(c) + 3
-    @test p[end - 3] isa Core.ReturnNode
+    @test unwrap(p[end - 3]) isa Core.ReturnNode
     ir = code_info(g, Tuple{Int})
     p = CodeInfoTools.Pipe(ir)
     c = deepcopy(p.from.code)
@@ -104,7 +104,7 @@ end
     @test length(p.to.code) == length(c) + 2
     push!(p, Expr(:call, rand))
     @test length(p.to.code) == length(c) + 3
-    @test p[end - 3] isa Core.ReturnNode
+    @test unwrap(p[end - 3]) isa Core.ReturnNode
 end
 
 @testset "Pipe -- pushfirst!" begin
@@ -142,5 +142,6 @@ end
     display(renumber(p.to))
     println()
     display(finish(p))
+    println()
 end
 

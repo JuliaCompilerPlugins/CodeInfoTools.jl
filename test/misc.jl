@@ -10,8 +10,10 @@ end
     for (v, st) in p
     end
     display(p)
-    display(length(p))
     p = CodeInfoTools.Pipe(ir)
     p = identity(p)
     get_slot(p, :x)
+    println()
+    println(length(p))
+    println()
 end

@@ -9,7 +9,7 @@ import Base: show
 ##### Exports
 #####
 
-export var, Variable, Canvas, renumber, code_info, finish, get_slot
+export var, Variable, Canvas, renumber, code_info, finish, get_slot, unwrap
 
 #####
 ##### Utilities
@@ -59,12 +59,20 @@ resolve(gr::GlobalRef) = getproperty(gr.mod, gr.name)
 ##### Canvas
 #####
 
+struct Statement{T}
+    node::T
+    type::Any
+end
+Statement(node::T) where T = Statement(node, Union{})
+unwrap(stmt::Statement) = stmt.node
+walk(fn, stmt::Statement{T}) where T = Statement(walk(fn, stmt.node), stmt.type)
+
 struct Canvas
     defs::Vector{Tuple{Int, Int}}
     code::Vector{Any}
     codelocs::Vector{Int32}
 end
-Canvas() = Canvas(Tuple{Int, Int}[], Any[], Int32[])
+Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[])
 
 @doc(
 """
@@ -101,7 +109,7 @@ function getindex(c::Canvas, idx::Int)
 end
 getindex(c::Canvas, v::Variable) = getindex(c, v.id)
 
-function push!(c::Canvas, stmt)
+function push!(c::Canvas, stmt::Statement)
     push!(c.code, stmt)
     push!(c.codelocs, Int32(1))
     l = length(c.defs) + 1
@@ -109,10 +117,33 @@ function push!(c::Canvas, stmt)
     return Variable(length(c.defs))
 end
 
-function insert!(c::Canvas, idx::Int, x)
+function push!(c::Canvas, node)
+    push!(c.code, Statement(node))
+    push!(c.codelocs, Int32(1))
+    l = length(c.defs) + 1
+    push!(c.defs, (l, l))
+    return Variable(length(c.defs))
+end
+
+function insert!(c::Canvas, idx::Int, x::Statement)
     r, ind = c.defs[idx]
     @assert(ind > 0)
     push!(c.code, x)
+    push!(c.codelocs, Int32(1))
+    for i in 1 : length(c.defs)
+        r, k = c.defs[i]
+        if k > 0 && k >= ind
+            c.defs[i] = (r, k + 1)
+        end
+    end
+    push!(c.defs, (length(c.defs) + 1, ind))
+    return Variable(length(c.defs))
+end
+
+function insert!(c::Canvas, idx::Int, x)
+    r, ind = c.defs[idx]
+    @assert(ind > 0)
+    push!(c.code, Statement(x))
     push!(c.codelocs, Int32(1))
     for i in 1 : length(c.defs)
         r, k = c.defs[i]
@@ -127,7 +158,8 @@ insert!(c::Canvas, v::Variable, x) = insert!(c, v.id, x)
 
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
-setindex!(c::Canvas, x, v::Int) = setindex!(c.code, x, v)
+setindex!(c::Canvas, x::Statement, v::Int) = setindex!(c.code, x, v)
+setindex!(c::Canvas, x, v::Int) = setindex!(c.code, Statement(x), v)
 setindex!(c::Canvas, x, v::Variable) = setindex!(c, x, v.id)
 
 function delete!(c::Canvas, idx::Int)
@@ -166,7 +198,10 @@ function show(io::IO, c::Canvas)
         print(io, tab^indent, "  ")
         print(io, string("%", r), " = ")
         ex = get(c.code, r, nothing)
-        ex == nothing ? print(io, "nothing") : print_stmt(io, ex)
+        ex == nothing ? print(io, "nothing") : print_stmt(io, unwrap(ex))
+        if unwrap(ex) isa Expr
+            ex.type !== Union{} && print(io, "::$(ex.type)")
+        end
     end
 end
 
@@ -282,7 +317,7 @@ end
 function finish(p::Pipe)
     new_ci = copy(p.from)
     c = renumber(p.to)
-    new_ci.code = c.code
+    new_ci.code = map(unwrap, c.code)
     new_ci.codelocs = c.codelocs
     new_ci.slotnames = p.from.slotnames
     new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
