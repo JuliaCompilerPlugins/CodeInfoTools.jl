@@ -1,5 +1,5 @@
 #####
-##### Pipes
+##### Builders
 #####
 
 f(x) = begin
@@ -35,9 +35,9 @@ function fn(x, y)
     end
 end
 
-@testset "Pipe -- iterate" begin
+@testset "Builder -- iterate" begin
     ir = code_info(f, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     local c = 1
     for (v, st) in p
         @test v == var(c)
@@ -45,7 +45,7 @@ end
         c += 1
     end
     ir = code_info(g, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     c = 1
     for (v, st) in p
         @test v == var(c)
@@ -53,36 +53,36 @@ end
     end
 end
 
-@testset "Pipe -- setindex!" begin
+@testset "Builder -- setindex!" begin
     ir = code_info(f, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     len = length(p.from.code)
     for (v, st) in p
         p[v] = st
     end
     ir = finish(p)
     @test length(p.to.code) == len
-    for (v, st) in CodeInfoTools.Pipe(ir)
+    for (v, st) in CodeInfoTools.Builder(ir)
         st isa Expr && st.head == :call || continue
         @test st.args[1] == Base.:(+)
     end
     ir = code_info(g, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     len = length(p.from.code)
     for (v, st) in p
         p[v] = st
     end
     ir = finish(p)
     @test length(p.to.code) == len
-    for (v, st) in CodeInfoTools.Pipe(ir)
+    for (v, st) in CodeInfoTools.Builder(ir)
         st isa Expr && st.head == :call || continue
         @test (st.args[1] in (g, Base.:(+), Base.:(-), Base.:(>), Base.println))
     end
 end
 
-@testset "Pipe -- push!" begin
+@testset "Builder -- push!" begin
     ir = code_info(f, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     c = deepcopy(p.from.code)
     for (v, st) in p
     end
@@ -94,7 +94,7 @@ end
     @test length(p.to.code) == length(c) + 3
     @test unwrap(p[end - 3]) isa Core.ReturnNode
     ir = code_info(g, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     c = deepcopy(p.from.code)
     for (v, st) in p
     end
@@ -107,9 +107,9 @@ end
     @test unwrap(p[end - 3]) isa Core.ReturnNode
 end
 
-@testset "Pipe -- pushfirst!" begin
+@testset "Builder -- pushfirst!" begin
     ir = code_info(f, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     push!(p, Expr(:call, rand))
     @test length(p.to.code) == 1
     pushfirst!(p, Expr(:call, rand))
@@ -117,7 +117,7 @@ end
     pushfirst!(p, Expr(:call, rand))
     @test length(p.to.code) == 3
     ir = code_info(g, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     push!(p, Expr(:call, rand))
     @test length(p.to.code) == 1
     pushfirst!(p, Expr(:call, rand))
@@ -126,9 +126,9 @@ end
     @test length(p.to.code) == 3
 end
 
-@testset "Pipe -- delete!" begin
+@testset "Builder -- delete!" begin
     ir = code_info(f, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     for (v, st) in p
     end
     display(p)

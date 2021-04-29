@@ -4,13 +4,13 @@
     @test (+)(1, Core.SSAValue(1)) == Core.SSAValue(2)
 end
 
-@testset "Pipe -- misc." begin
+@testset "Builder -- misc." begin
     ir = code_info(g, Tuple{Int})
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     for (v, st) in p
     end
     display(p)
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     p = identity(p)
     get_slot(p, :x)
     println()

@@ -9,7 +9,7 @@ import Base: show
 ##### Exports
 #####
 
-export var, Variable, Canvas, renumber, code_info, finish, get_slot, unwrap, Statement, stmt
+export var, Variable, Canvas, Builder, renumber, code_info, finish, get_slot, unwrap, Statement, stmt
 
 #####
 ##### Utilities
@@ -222,59 +222,59 @@ function print_stmt(io::IO, ::Val{:pop_exception}, ex)
 end
 
 #####
-##### Pipe
+##### Builder
 #####
 
 struct NewVariable
     id::Int
 end
 
-mutable struct Pipe
+mutable struct Builder
     from::CodeInfo
     to::Canvas
     map::Dict{Any, Any}
     var::Int
 end
 
-function Pipe(ci::CodeInfo)
+function Builder(ci::CodeInfo)
     canv = Canvas()
-    p = Pipe(ci, canv, Dict(), 0)
+    p = Builder(ci, canv, Dict(), 0)
     return p
 end
 
 @doc(
 """
-    Pipe(ir)
+    Builder(ir)
 
 A wrapper around a `Canvas` object. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
-""", Pipe)
+""", Builder)
 
-get_slot(p::Pipe, s::Symbol) = get_slot(p.from, s)
+get_slot(p::Builder, s::Symbol) = get_slot(p.from, s)
 
 # This is used to handle NewVariable instances.
-substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
-substitute(p::Pipe, x) = get(p.map, x, x)
-substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
-substitute(p::Pipe, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
-substitute(p::Pipe, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
-substitute(p::Pipe, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
+substitute!(p::Builder, x, y) = (p.map[x] = y; x)
+substitute(p::Builder, x) = get(p.map, x, x)
+substitute(p::Builder, x::Expr) = Expr(x.head, substitute.((p, ), x.args)...)
+substitute(p::Builder, x::Core.GotoNode) = Core.GotoNode(substitute(p, x.label))
+substitute(p::Builder, x::Core.GotoIfNot) = Core.GotoIfNot(substitute(p, x.cond), substitute(p, x.dest))
+substitute(p::Builder, x::Core.ReturnNode) = Core.ReturnNode(substitute(p, x.val))
 
-length(p::Pipe) = length(p.to)
+length(p::Builder) = length(p.to)
 
-getindex(p::Pipe, v) = getindex(p.to, v)
-function getindex(p::Pipe, v::Union{Variable, NewVariable})
+getindex(p::Builder, v) = getindex(p.to, v)
+function getindex(p::Builder, v::Union{Variable, NewVariable})
     tg = substitute(p, v)
     return getindex(p.to, tg)
 end
 
-lastindex(p::Pipe) = length(p.to)
+lastindex(p::Builder) = length(p.to)
 
 function pipestate(ci::CodeInfo)
     ks = sort([Variable(i) => v for (i, v) in enumerate(ci.code)], by = x -> x[1].id)
     return first.(ks)
 end
 
-function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
+function iterate(p::Builder, (ks, i) = (pipestate(p.from), 1))
     i > length(ks) && return
     v = ks[i]
     st = walk(resolve, p.from.code[v.id])
@@ -282,28 +282,28 @@ function iterate(p::Pipe, (ks, i) = (pipestate(p.from), 1))
     return ((v, st), (ks, i + 1))
 end
 
-var!(p::Pipe) = NewVariable(p.var += 1)
+var!(p::Builder) = NewVariable(p.var += 1)
 
-function Base.push!(p::Pipe, x)
+function Base.push!(p::Builder, x)
     tmp = var!(p)
     v = push!(p.to, substitute(p, x))
     substitute!(p, tmp, v)
     return tmp
 end
 
-function Base.pushfirst!(p::Pipe, x)
+function Base.pushfirst!(p::Builder, x)
     tmp = var!(p)
     v = pushfirst!(p.to, substitute(p, x))
     substitute!(p, tmp, v)
     return tmp
 end
 
-function setindex!(p::Pipe, x, v::Union{Variable, NewVariable})
+function setindex!(p::Builder, x, v::Union{Variable, NewVariable})
     k = substitute(p, v)
     setindex!(p.to, substitute(p, x), k)
 end
 
-function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
+function insert!(p::Builder, v::Union{Variable, NewVariable}, x; after = false)
     v′ = substitute(p, v).id
     x = substitute(p, x)
     tmp = var!(p)
@@ -311,12 +311,12 @@ function insert!(p::Pipe, v::Union{Variable, NewVariable}, x; after = false)
     return tmp
 end
 
-function Base.delete!(p::Pipe, v::Union{Variable, NewVariable})
+function Base.delete!(p::Builder, v::Union{Variable, NewVariable})
     v′ = substitute(p, v)
     delete!(p.to, v′)
 end
 
-function finish(p::Pipe)
+function finish(p::Builder)
     new_ci = copy(p.from)
     c = renumber(p.to)
     new_ci.code = map(unwrap, c.code)
@@ -331,13 +331,13 @@ end
 
 @doc(
 """
-    finish(p::Pipe)
+    finish(p::Builder)
 
-Create a new `CodeInfo` instance from a [`Pipe`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
+Create a new `CodeInfo` instance from a [`Builder`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
 """, finish)
 
-Base.display(p::Pipe) = display(p.to)
-function Base.identity(p::Pipe)
+Base.display(p::Builder) = display(p.to)
+function Base.identity(p::Builder)
     for (v, st) in p
     end
     return p
