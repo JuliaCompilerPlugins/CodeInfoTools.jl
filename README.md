@@ -16,7 +16,7 @@
 ] add CodeInfoTools
 ```
 
-> **Note**: A curated collection of tools for the discerning `CodeInfo` connoisseur. The architecture of this package is based closely on the [Pipe construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
+> **Note**: A curated collection of tools for the discerning `CodeInfo` connoisseur. The architecture of this package is based closely on the [Builder construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
 
 ## Motivation
 
@@ -50,13 +50,13 @@ CodeInfo(
 )
 ```
 
-Do you ever wonder -- is there another (perhaps, any) way to work with this object? A `Pipe` perhaps? Where I might load my `CodeInfo` into -- iterate, make local changes, and produce a new copy?
+Do you ever wonder -- is there another (perhaps, any) way to work with this object? A `Builder` perhaps? Where I might load my `CodeInfo` into -- iterate, make local changes, and produce a new copy?
 
 Fear no longer, my intuitive friend! We present `CodeInfoTools.jl` to assuage your fears and provide you (yes, you) with an assortment of tools to mangle, distort, smooth, slice, chunk, and, above all, _work with_ `CodeInfo`.
 
 ## Contribution
 
-`CodeInfoTools.jl` provides an `Pipe` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
+`CodeInfoTools.jl` provides an `Builder` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
 
 ```julia
 struct Canvas
@@ -65,16 +65,16 @@ struct Canvas
     codelocs::Vector{Int32}
 end
 
-mutable struct Pipe
+mutable struct Builder
     from::CodeInfo
     to::Canvas # just the mutable bits
     map::Dict{Any, Any}
     var::Int
 end
 
-function Pipe(ci::CodeInfo)
+function Builder(ci::CodeInfo)
     canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
-    p = Pipe(ci, canv, Dict(), 0)
+    p = Builder(ci, canv, Dict(), 0)
     return p
 end
 ```
@@ -97,7 +97,7 @@ end
 ir = code_info(f, Tuple{Int,Int})
 
 function transform(ir)
-    p = CodeInfoTools.Pipe(ir)
+    p = CodeInfoTools.Builder(ir)
     for (v, st) in p
         st isa Expr || continue
         st.head == :call || continue
@@ -111,7 +111,7 @@ display(ir)
 display(transform(ir))
 ```
 
-Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Pipe` instance `p`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
+Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `p`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
 
 ```
 # Before:
