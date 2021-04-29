@@ -161,7 +161,7 @@ insert!(c::Canvas, v::Variable, x) = insert!(c, v.id, x)
 pushfirst!(c::Canvas, x) = insert!(c, 1, x)
 
 setindex!(c::Canvas, x::Statement, v::Int) = setindex!(c.code, x, v)
-setindex!(c::Canvas, x, v::Int) = setindex!(c.code, Statement(x), v)
+setindex!(c::Canvas, x, v::Int) = setindex!(c, Statement(x), v)
 setindex!(c::Canvas, x, v::Variable) = setindex!(c, x, v.id)
 
 function delete!(c::Canvas, idx::Int)
