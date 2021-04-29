@@ -4,7 +4,7 @@
 
 @testset "Canvas -- push!" begin
     c = Canvas()
-    @test Variable(1) == push!(c, Expr(:call, rand))
+    @test Variable(1) == push!(c, Statement(Expr(:call, rand)))
     @test Variable(2) == push!(c, Expr(:call, rand))
     @test Variable(3) == push!(c, Expr(:call, rand))
     @test Variable(4) == push!(c, Expr(:call, rand))
@@ -21,7 +21,7 @@ end
 @testset "Canvas -- insert!" begin
     c = Canvas()
     @test Variable(1) == push!(c, Expr(:call, rand))
-    @test Variable(2) == insert!(c, 1, Expr(:call, rand))
+    @test Variable(2) == insert!(c, 1, Statement(Expr(:call, rand)))
     @test Variable(3) == insert!(c, 1, Expr(:call, rand))
     @test Variable(4) == insert!(c, 1, Expr(:call, rand))
     @test Variable(5) == insert!(c, 1, Expr(:call, rand))

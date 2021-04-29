@@ -9,7 +9,7 @@ import Base: show
 ##### Exports
 #####
 
-export var, Variable, Canvas, renumber, code_info, finish, get_slot, unwrap
+export var, Variable, Canvas, renumber, code_info, finish, get_slot, unwrap, Statement, stmt
 
 #####
 ##### Utilities
@@ -66,6 +66,8 @@ end
 Statement(node::T) where T = Statement(node, Union{})
 unwrap(stmt::Statement) = stmt.node
 walk(fn, stmt::Statement{T}) where T = Statement(walk(fn, stmt.node), stmt.type)
+
+const stmt = Statement
 
 struct Canvas
     defs::Vector{Tuple{Int, Int}}
