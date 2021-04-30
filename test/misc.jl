@@ -5,7 +5,7 @@
 end
 
 @testset "Builder -- misc." begin
-    ir = code_info(g, Tuple{Int})
+    ir = code_info(g, Int)
     p = CodeInfoTools.Builder(ir)
     for (v, st) in p
     end

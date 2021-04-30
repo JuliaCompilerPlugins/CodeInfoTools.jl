@@ -18,18 +18,31 @@ export var, Variable, Canvas, Builder, renumber, code_info, finish, get_slot, un
 const Variable = Core.SSAValue
 var(id::Int) = Variable(id)
 
+@doc(
+"""
+    const Variable = Core.SSAValue
+    var(id::Int) = Variable(id)
+
+Alias for `Core.SSAValue` -- represents a primitive register in lowered code. See the section of Julia's documentation on [lowered forms](https://docs.julialang.org/en/v1/devdocs/ast/#Lowered-form) for more information.
+""", Variable)
+
 Base.:(+)(v::Variable, id::Int) = Variable(v.id + id)
 Base.:(+)(id::Int, v::Variable) = Variable(v.id + id)
 
-function code_info(f, tt; generated=true, debuginfo=:default)
-    ir = code_lowered(f, tt; generated=generated, debuginfo=:default)
+function code_info(f::Function, tt::Type{T}; generated=true, debuginfo=:default) where T <: Tuple
+    ir = code_lowered(f, tt; generated = generated, debuginfo = :default)
     isempty(ir) && return nothing
     return ir[1]
 end
 
+function code_info(f::Function, t::Type...; generated = true, debuginfo = :default)
+    return code_info(f, Tuple{t...}; generated = generated, debuginfo = debuginfo)
+end
+
 @doc(
 """
-    code_info(f, tt; generate = true, debuginfo = :default)
+    code_info(f::Function, tt::Type{T}; generated = true, debuginfo = :default) where T <: Tuple
+    code_info(f::Function, t::Type...; generated = true, debuginfo = :default)
 
 Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
 """, code_info)
