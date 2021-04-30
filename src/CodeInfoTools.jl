@@ -324,7 +324,7 @@ end
 """
     iterate(b::Builder, (ks, i) = (pipestate(p.from), 1))
 
-Iterate over the original `CodeInfo` and add statements to a target [`Canvas`](@ref) held by `b::Builder`. `iterate` builds the [`Canvas`](@ref) in place -- it also resolves local `GlobalRef` instances to their global values and inlines them at the head of `Expr(:call, ...)` instances. `iterate` is the key to expressing idioms like:
+Iterate over the original `CodeInfo` and add statements to a target [`Canvas`](@ref) held by `b::Builder`. `iterate` builds the [`Canvas`](@ref) in place -- it also resolves local `GlobalRef` instances to their global values in-place at the function argument (the 1st argument) of `Expr(:call, ...)` instances. `iterate` is the key to expressing idioms like:
 
 ```julia
 for (v, st) in b
