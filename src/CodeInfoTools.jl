@@ -90,7 +90,7 @@ const stmt = Statement
         type::Any
     end
 
-A wrapper around `Core` nodes with an optional `type` field to allow for user-based local propagation and other forms of analysis. Usage of `Builder` or `Canvas` will automatically wrap or unwrap nodes when inserting or calling `finish` -- so the user should never see `Statement` instances directly unless they are working on type propagation.
+A wrapper around `Core` nodes with an optional `type` field to allow for user-based local propagation and other forms of analysis. Usage of [`Builder`](@ref) or [`Canvas`](@ref) will automatically wrap or unwrap nodes when inserting or calling [`finish`](@ref) -- so the user should never see `Statement` instances directly unless they are working on type propagation.
 """, Statement)
 
 struct Canvas
@@ -269,7 +269,7 @@ end
 """
     Builder(ir)
 
-A wrapper around a `Canvas` object. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
+A wrapper around a [`Canvas`](@ref) instance. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Builder)
 
 get_slot(b::Builder, s::Symbol) = get_slot(b.from, s)
@@ -309,7 +309,7 @@ end
 """
     iterate(b::Builder, (ks, i) = (pipestate(p.from), 1))
 
-Iterate over the original `CodeInfo` and add statements to a target `Canvas` held by `b::Builder`. `iterate` builds the `Canvas` in place -- it also resolves local `GlobalRef` instances to their global values and inlines them at the head of `Expr(:call, ...)` instances. `iterate` is the key to expressing idioms like:
+Iterate over the original `CodeInfo` and add statements to a target [`Canvas`](@ref) held by `b::Builder`. `iterate` builds the [`Canvas`](@ref) in place -- it also resolves local `GlobalRef` instances to their global values and inlines them at the head of `Expr(:call, ...)` instances. `iterate` is the key to expressing idioms like:
 
 ```julia
 for (v, st) in b
@@ -317,7 +317,7 @@ for (v, st) in b
 end
 ```
 
-At each step of the iteration, a new node is copied from the original `CodeInfo` to the target `Canvas` -- and the user is allowed to `setindex!`, `push!`, or otherwise change the target `Canvas` before the next iteration. The naming of `Core.SSAValues` is taken care of to allow this.
+At each step of the iteration, a new node is copied from the original `CodeInfo` to the target [`Canvas`](@ref) -- and the user is allowed to `setindex!`, `push!`, or otherwise change the target [`Canvas`](@ref) before the next iteration. The naming of `Core.SSAValues` is taken care of to allow this.
 """, iterate)
 
 var!(b::Builder) = NewVariable(b.var += 1)
@@ -371,7 +371,7 @@ end
 """
     finish(b::Builder)
 
-Create a new `CodeInfo` instance from a [`Builder`](@ref). Renumbers the wrapped `Canvas` in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped `Canvas`.
+Create a new `CodeInfo` instance from a [`Builder`](@ref). Renumbers the wrapped [`Canvas`](@ref) in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped [`Canvas`](@ref)
 """, finish)
 
 Base.display(b::Builder) = display(b.to)
