@@ -8,6 +8,7 @@ CurrentModule = CodeInfoTools
 
 ```@docs
 code_info
+Variable
 Statement
 Canvas
 Builder
