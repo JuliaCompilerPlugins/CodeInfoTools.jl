@@ -119,11 +119,11 @@ Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[])
 """
 ```julia
 struct Canvas
-    defs::Vector{Int}
+    defs::Vector{Tuple{Int, Int}}
     code::Vector{Any}
     codelocs::Vector{Int32}
 end
-Canvas() = Canvas(Int[], Any[], Int32[])
+Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[])
 ```
 
 A `Vector`-like abstraction for `Core` code nodes.
