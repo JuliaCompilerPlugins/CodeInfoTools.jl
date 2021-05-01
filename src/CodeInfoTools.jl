@@ -8,7 +8,7 @@ import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, 
 ##### Exports
 #####
 
-export code_info, walk, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, renumber, verify, finish, unwrap, lambda, λ
+export code_info, walk, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, return!, renumber, verify, finish, unwrap, lambda, λ
 
 #####
 ##### Utilities
@@ -299,6 +299,7 @@ end
 @doc(
 """
     Builder(ci::Core.CodeInfo)
+    Builder(fn::Function, t::Type...)
     Builder()
 
 A wrapper around a [`Canvas`](@ref) instance. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
@@ -409,6 +410,17 @@ Add a new `Core.SlotNumber` with associated `name::Symbol` to the in-progress `C
 `name::Symbol` must not already be associated with a `Core.SlotNumber`.
 """, slot!)
 
+return!(b::Builder, v::Variable) = push!(b, Core.ReturnNode(v))
+return!(b::Builder, v::NewVariable) = push!(b, Core.ReturnNode(v))
+
+@doc(
+"""
+    return!(b::Builder, v::Variable)
+    return!(b::Builder, v::NewVariable)
+
+Push a `Core.ReturnNode` to the current end of `b.to::Canvas`. Requires that the user pass in a `v::Variable` or `v::NewVariable` instance -- so perform the correct unpack/tupling before creating a `Core.ReturnNode`.
+""", return!)
+
 function verify(src::Core.CodeInfo)
     Core.Compiler.validate_code(src)
     @assert(!isempty(src.linetable))
@@ -492,9 +504,14 @@ const λ = lambda
 
 @doc(
 """
-    lambda(m::Module, src::Core.CodeInfo)
-    lambda(m::Module, src::Core.CodeInfo, nargs::Int)
-    const λ = lambda
+!!! warning
+    It is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
+
+```julia
+lambda(m::Module, src::Core.CodeInfo)
+lambda(m::Module, src::Core.CodeInfo, nargs::Int)
+const λ = lambda
+```
 
 Create an anonymous `@generated` function from a piece of `src::Core.CodeInfo`. The `src::Core.CodeInfo` is checked for consistency by [`verify`](@ref).
 
@@ -512,8 +529,7 @@ lambda(m::Module, src::Core.CodeInfo, nargs::Int)
 
 allows the user to specify the number of arguments via `nargs`.
 
-!!! warning
-    it is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
+`lambda  also has the shorthand `λ` for those lovers of Unicode.
 """, lambda)
 
 end # module

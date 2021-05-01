@@ -54,3 +54,22 @@ rosenbrock(x, y, a, b) = (a - x)^2 + b * (y - x^2)^2
     fn = λ(finish(b), 4)
     @test rosenbrock(1.0, 1.0, 1.0, 1.0) == fn(1.0, 1.0, 1.0, 1.0)
 end
+
+@testset "Evaluation with nargs -- from lambda" begin
+    l = (x, y) -> x + y
+    b = Builder(l, Int, Int)
+    identity(b)
+    fn = λ(finish(b), 2)
+    @test l(5, 5) == fn(5, 5)
+end
+
+@testset "Evaluation with nargs -- blank build" begin
+    b = Builder()
+    x = slot!(b, :x; arg = true)
+    y = slot!(b, :y; arg = true)
+    v = push!(b, Expr(:call, Base.:(+), x, y))
+    return!(b, v)
+    src = finish(b)
+    fn = λ(src, 2)
+    @test fn(5, 5) == 10
+end
