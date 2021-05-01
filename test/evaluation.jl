@@ -44,3 +44,13 @@ foo(x::Int64, y, z) = x <= 1 ? 1 : x * foo(x - 1, y, z)
     fn = λ(finish(b), 3)
     @test foo(5, nothing, nothing) == fn(5, nothing, nothing)
 end
+
+rosenbrock(x, y, a, b) = (a - x)^2 + b * (y - x^2)^2
+
+@testset "Evaluation with nargs - slots = (#self, :x, :y, :a, :b)" begin
+    b = Builder(code_info(rosenbrock, Float64, Float64, 
+                          Float64, Float64))
+    identity(b)
+    fn = λ(finish(b), 4)
+    @test rosenbrock(1.0, 1.0, 1.0, 1.0) == fn(1.0, 1.0, 1.0, 1.0)
+end
