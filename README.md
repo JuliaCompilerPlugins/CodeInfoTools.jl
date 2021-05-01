@@ -73,10 +73,10 @@ function f(x, y)
     end
 end
 
-ir = code_info(f, Int, Int)
+src = code_info(f, Int, Int)
 
-function transform(ir)
-    b = CodeInfoTools.Builder(ir)
+function transform(src)
+    b = CodeInfoTools.Builder(src)
     for (v, st) in b
         st isa Expr || continue
         st.head == :call || continue
@@ -86,8 +86,8 @@ function transform(ir)
     return finish(b)
 end
 
-display(ir)
-display(transform(ir))
+display(src)
+display(transform(src))
 ```
 
 Here, we've lowered a function directly to a `Core.CodeInfo` instance and created a `Builder` instance `b`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `Core.CodeInfo` with your changes fresh.
