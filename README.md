@@ -16,11 +16,11 @@
 ] add CodeInfoTools
 ```
 
-> **Note**: A curated collection of tools for the discerning `CodeInfo` connoisseur. The architecture of this package is based closely on the [Builder construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
+> **Note**: A curated collection of tools for the discerning `Core.CodeInfo` connoisseur. The architecture of this package is based closely on the [Builder construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
 
 ## Motivation
 
-Working with `CodeInfo` is often not fun. E.g. when examining the untyped expansion of the [Rosenbrock function](https://en.wikipedia.org/wiki/Rosenbrock_function)
+Working with `Core.CodeInfo` is often not fun. E.g. when examining the untyped lowered form of the [Rosenbrock function](https://en.wikipedia.org/wiki/Rosenbrock_function)
 
 ```
 CodeInfo(
@@ -52,34 +52,11 @@ CodeInfo(
 
 Do you ever wonder -- is there another (perhaps, any) way to work with this object? A `Builder` perhaps? Where I might load my `CodeInfo` into -- iterate, make local changes, and produce a new copy?
 
-Fear no longer, my intuitive friend! We present `CodeInfoTools.jl` to assuage your fears and provide you (yes, you) with an assortment of tools to mangle, distort, smooth, slice, chunk, and, above all, _work with_ `CodeInfo`.
-
 ## Contribution
 
-`CodeInfoTools.jl` provides an `Builder` abstraction which allows you to safely iterate over and manipulate `CodeInfo`.
+`CodeInfoTools.jl` provides a `Builder` abstraction which allows you to safely iterate over and manipulate `CodeInfo`. It also provides more advanced functionality for creating and evaluating `CodeInfo` -- [which is a bit on the experimental side.](https://juliacompilerplugins.github.io/CodeInfoTools.jl/dev/#Evaluation)
 
-```julia
-struct Canvas
-    defs::Vector{Tuple{Int, Int}}
-    code::Vector{Any}
-    codelocs::Vector{Int32}
-end
-
-mutable struct Builder
-    from::CodeInfo
-    to::Canvas # just the mutable bits
-    map::Dict{Any, Any}
-    var::Int
-end
-
-function Builder(ci::CodeInfo)
-    canv = Canvas(Tuple{Int, Int}[], Any[], Int32[])
-    p = Builder(ci, canv, Dict(), 0)
-    return p
-end
-```
-
-How does this work in practice?
+How might you use this in practice?
 
 ```julia
 using CodeInfoTools
@@ -94,24 +71,24 @@ function f(x, y)
     end
 end
 
-ir = code_info(f, Tuple{Int,Int})
+ir = code_info(f, Int, Int)
 
 function transform(ir)
-    p = CodeInfoTools.Builder(ir)
-    for (v, st) in p
+    b = CodeInfoTools.Builder(ir)
+    for (v, st) in b
         st isa Expr || continue
         st.head == :call || continue
         st.args[1] == Base.:(+) || continue
-        p[v] = Expr(:call, Base.:(*), st.args[2:end]...)
+        b[v] = Expr(:call, Base.:(*), st.args[2:end]...)
     end
-    return finish(p)
+    return finish(b)
 end
 
 display(ir)
 display(transform(ir))
 ```
 
-Here, we've lowered a function directly to a `CodeInfo` instance and shoved into a `Builder` instance `p`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
+Here, we've lowered a function directly to a `CodeInfo` instance and created a `Builder` instance `b`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
 
 ```
 # Before:
