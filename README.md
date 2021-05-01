@@ -54,7 +54,7 @@ Do you ever wonder -- is there another (perhaps, any) way to work with this obje
 
 ## Contribution
 
-`CodeInfoTools.jl` provides a `Builder` abstraction which allows you to safely iterate over and manipulate `CodeInfo`. It also provides more advanced functionality for creating and evaluating `CodeInfo` -- [which is a bit on the experimental side.](https://juliacompilerplugins.github.io/CodeInfoTools.jl/dev/#Evaluation)
+`CodeInfoTools.jl` provides a `Builder` abstraction which allows you to safely iterate over and manipulate `Core.CodeInfo`. It also provides more advanced functionality for creating and evaluating `Core.CodeInfo` -- [which is a bit on the experimental side.](https://juliacompilerplugins.github.io/CodeInfoTools.jl/dev/#Evaluation)
 
 How might you use this in practice?
 
@@ -88,7 +88,7 @@ display(ir)
 display(transform(ir))
 ```
 
-Here, we've lowered a function directly to a `CodeInfo` instance and created a `Builder` instance `b`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `CodeInfo` with your changes fresh.
+Here, we've lowered a function directly to a `Core.CodeInfo` instance and created a `Builder` instance `b`. You can now safely iterate over this object, perform local changes, press `finish` and - _(la di da!)_ - out comes a new `Core.CodeInfo` with your changes fresh.
 
 ```
 # Before:
