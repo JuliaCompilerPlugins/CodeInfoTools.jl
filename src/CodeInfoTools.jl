@@ -514,18 +514,6 @@ end
 # Experimental interfaces which exposes several **stateful** parts of Core.Compiler.
 # If you're using this stuff, you should really know what you're doing.
 
-function get_methodinstance(@nospecialize(sig);
-        world=Base.get_world_counter(),
-        interp=Core.Compiler.NativeInterpreter(world))
-    ms = Base._methods_by_ftype(sig, 1, Base.get_world_counter())
-    @assert length(ms) == 1
-    m = ms[1]
-    mi = ccall(:jl_specializations_get_linfo,
-               Ref{Core.MethodInstance}, (Any, Any, Any),
-               m[3], m[1], m[2])
-    return mi
-end
-
 function code_inferred(mi::Core.Compiler.MethodInstance;
         world=Base.get_world_counter(),
         interp=Core.Compiler.NativeInterpreter(world))
@@ -538,16 +526,14 @@ function code_inferred(mi::Core.Compiler.MethodInstance;
                                               src, "lowered")
     frame = Core.Compiler.InferenceState(result, src, false, interp)
     frame === nothing && return nothing
-    local new::Core.CodeInfo
     if Core.Compiler.typeinf(interp, frame)
         opt_params = Core.Compiler.OptimizationParams(interp)
         opt = Core.Compiler.OptimizationState(frame, opt_params, interp)
         Core.Compiler.optimize(interp, opt, opt_params, result)
-        new = opt.src
     end
     ccall(:jl_typeinf_end, Cvoid, ())
     frame.inferred || return nothing
-    return new
+    return src
 end
 
 function code_inferred(@nospecialize(f), types::Type{T};
