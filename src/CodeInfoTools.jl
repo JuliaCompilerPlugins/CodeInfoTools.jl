@@ -286,9 +286,20 @@ function Builder(ci::CodeInfo)
     return p
 end
 
+function Builder(fn::Function, t::Type...)
+    src = code_info(fn, t...)
+    return Builder(src)
+end
+
+function Builder()
+    dummy = () -> return
+    return Builder(dummy)
+end
+
 @doc(
 """
-    Builder(ir)
+    Builder(ci::Core.CodeInfo)
+    Builder()
 
 A wrapper around a [`Canvas`](@ref) instance. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Builder)
@@ -380,20 +391,20 @@ function Base.delete!(b::Builder, v::Union{Variable, NewVariable})
     delete!(b.to, v′)
 end
 
-function slot!(b::Builder, name::Symbol)
+function slot!(b::Builder, name::Symbol; arg = false)
     @assert(get_slot(b, name) === nothing)
     push!(b.slots, name)
     ind = length(b.from.slotnames) + length(b.slots)
     s = slot(ind)
-    pushfirst!(b, Core.NewvarNode(s))
+    arg || pushfirst!(b, Core.NewvarNode(s))
     return s
 end
 
 @doc(
 """
-    slot!(b::Builder, name::Symbol)::Core.SlotNumber
+    slot!(b::Builder, name::Symbol; arg = false)::Core.SlotNumber
 
-Add a new `Core.SlotNumber` with associated `name::Symbol` to the in-progress `Core.CodeInfo` on the `c::Canvas` inside `b::Builder`. Also performs a `pushfirst!` with a `Core.NewvarNode` for consistency in the in-progress `Core.CodeInfo`.
+Add a new `Core.SlotNumber` with associated `name::Symbol` to the in-progress `Core.CodeInfo` on the `c::Canvas` inside `b::Builder`. If `arg == false`, also performs a `pushfirst!` with a `Core.NewvarNode` for consistency in the in-progress `Core.CodeInfo`. (`arg` controls whether or not we interpreter the new slot as an argument)
 
 `name::Symbol` must not already be associated with a `Core.SlotNumber`.
 """, slot!)
@@ -438,7 +449,11 @@ end
 Create a new `CodeInfo` instance from a [`Builder`](@ref). Renumbers the wrapped [`Canvas`](@ref) in-place -- then copies information from the original `CodeInfo` instance and inserts modifications from the wrapped [`Canvas`](@ref)
 """, finish)
 
-Base.display(b::Builder) = display(b.to)
+function Base.show(io::IO, b::Builder)
+    print("1: $((b.from.slotnames..., b.slots...))")
+    Base.show(io, b.to)
+end
+
 function Base.identity(b::Builder)
     for (v, st) in b
     end
@@ -450,21 +465,23 @@ end
 #####
 
 function lambda(m::Module, src::Core.CodeInfo)
-    verify(src)
+    ci = copy(src)
+    verify(ci)
     inds = findall(==(0x00), src.slotflags)
     @assert(inds !== nothing)
     args = getindex(src.slotnames, inds)[2 : end]
     @eval m @generated function $(gensym())($(args...))
-        return $src
+        return $ci
     end
 end
 
 function lambda(m::Module, src::Core.CodeInfo, nargs::Int)
-    verify(src)
+    ci = copy(src)
+    verify(ci)
     @debug "Warning: using explicit `nargs` to construct the generated function. If this number does not match the correct number of arguments in the :slotflags field of `src::Core.CodeInfo`, this can lead to segfaults and other bad behavior."
     args = src.slotnames[2 : 1 + nargs]
     @eval m @generated function $(gensym())($(args...))
-        return $src
+        return $ci
     end
 end
 
@@ -495,7 +512,8 @@ lambda(m::Module, src::Core.CodeInfo, nargs::Int)
 
 allows the user to specify the number of arguments via `nargs`.
 
-**Note**: it is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
+!!! warning
+    it is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
 """, lambda)
 
 end # module
