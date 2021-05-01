@@ -2,13 +2,48 @@ module CodeInfoTools
 
 using Core: CodeInfo 
 
-import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length, identity, isempty, show
+import Base: iterate, 
+             push!, 
+             pushfirst!, 
+             insert!, 
+             delete!, 
+             getindex, 
+             lastindex, 
+             setindex!, 
+             display, 
+             +, 
+             length, 
+             identity, 
+             isempty, 
+             show
+
+import Core.Compiler: AbstractInterpreter, 
+                      OptimizationState,
+                      OptimizationParams
 
 #####
 ##### Exports
 #####
 
-export code_info, walk, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, return!, renumber, verify, finish, unwrap, lambda, λ
+export code_info, 
+       code_inferred,
+       walk, 
+       var, 
+       Variable, 
+       slot, 
+       get_slot, 
+       Statement, 
+       stmt, 
+       Canvas, 
+       Builder, 
+       slot!, 
+       return!, 
+       renumber, 
+       verify, 
+       finish, 
+       unwrap, 
+       lambda, 
+       λ
 
 #####
 ##### Utilities
@@ -473,6 +508,79 @@ function Base.identity(b::Builder)
 end
 
 #####
+##### Inference
+#####
+
+# Experimental interfaces which exposes several **stateful** parts of Core.Compiler.
+# If you're using this stuff, you should really know what you're doing.
+
+function get_methodinstance(@nospecialize(sig);
+        world=Base.get_world_counter(),
+        interp=Core.Compiler.NativeInterpreter(world))
+    ms = Base._methods_by_ftype(sig, 1, Base.get_world_counter())
+    @assert length(ms) == 1
+    m = ms[1]
+    mi = ccall(:jl_specializations_get_linfo,
+               Ref{Core.MethodInstance}, (Any, Any, Any),
+               m[3], m[1], m[2])
+    return mi
+end
+
+function code_inferred(mi::Core.Compiler.MethodInstance;
+        world=Base.get_world_counter(),
+        interp=Core.Compiler.NativeInterpreter(world))
+    ccall(:jl_typeinf_begin, Cvoid, ())
+    result = Core.Compiler.InferenceResult(mi)
+    src = Core.Compiler.retrieve_code_info(mi)
+    src === nothing && return nothing
+    src.inferred && return src
+    Core.Compiler.validate_code_in_debug_mode(result.linfo, 
+                                              src, "lowered")
+    frame = Core.Compiler.InferenceState(result, src, false, interp)
+    frame === nothing && return nothing
+    local new::Core.CodeInfo
+    if Core.Compiler.typeinf(interp, frame)
+        opt_params = Core.Compiler.OptimizationParams(interp)
+        opt = Core.Compiler.OptimizationState(frame, opt_params, interp)
+        Core.Compiler.optimize(interp, opt, opt_params, result)
+        new = opt.src
+    end
+    ccall(:jl_typeinf_end, Cvoid, ())
+    frame.inferred || return nothing
+    return new
+end
+
+function code_inferred(@nospecialize(f), types::Type{T};
+        world=Base.get_world_counter(),
+        interp=Core.Compiler.NativeInterpreter(world)) where T <: Tuple
+    return pop!([code_inferred(mi; world=world, interp=interp)
+                 for mi in Base.method_instances(f, types, world)])
+end
+
+function code_inferred(@nospecialize(f), t::Type...; 
+        world = Base.get_world_counter(),
+        interp = Core.Compiler.NativeInterpreter(world))
+    return code_inferred(f, Tuple{t...}; 
+                         world = world, interp = interp)
+end
+
+@doc(
+"""
+    code_inferred(@nospecialize(f), t::Type...; 
+            world = Base.get_world_counter(),
+            interp = Core.Compiler.NativeInterpreter(world))
+
+Derives a `Core.MethodInstance` specialization for signature `Tuple{typeof(f), t::Type...}` and infers it with `interp`. Can be used to derive inferred lowered code with custom interpreters, either as parts of custom compilation pipelines or for debugging purposes.
+
+`code_inferred` includes explicit checks which prevent the user from inadvertedly running inference multiple times on the same cached `Core.CodeInfo` associated with the specialization.
+
+!!! warning
+    Inference and optimization are stateful -- if you try to do "dumb" things like grab the inferred `Core.CodeInfo`, wipe it, and shove it through [`lambda`](@ref) ... it is highly unlikely to work and very likely to explode in your face.
+
+    Inference also caches the inferred `Core.CodeInfo` associated with the `Core.MethodInstance` specialization _irrespective of the interpreter_. That means (at least as far as I know at this time) you can't quickly infer with multiple interpreters without forcing a cache invalidation in between inference runs.
+""", code_inferred)
+
+#####
 ##### Evaluation
 #####
 
@@ -505,7 +613,7 @@ const λ = lambda
 @doc(
 """
 !!! warning
-    It is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
+It is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
 
 ```julia
 lambda(m::Module, src::Core.CodeInfo)
@@ -515,21 +623,21 @@ const λ = lambda
 
 Create an anonymous `@generated` function from a piece of `src::Core.CodeInfo`. The `src::Core.CodeInfo` is checked for consistency by [`verify`](@ref).
 
-`lambda` has a 2 different forms. The first form, given by signature:
+        `lambda` has a 2 different forms. The first form, given by signature:
 
-```julia
-lambda(m::Module, src::Core.CodeInfo)
-```
+        ```julia
+        lambda(m::Module, src::Core.CodeInfo)
+        ```
 
-tries to detect the correct number of arguments automatically. This may fail (for any number of internal reasons). Expecting this, the second form, given by signature:
+        tries to detect the correct number of arguments automatically. This may fail (for any number of internal reasons). Expecting this, the second form, given by signature:
 
-```julia
-lambda(m::Module, src::Core.CodeInfo, nargs::Int)
-```
+            ```julia
+            lambda(m::Module, src::Core.CodeInfo, nargs::Int)
+            ```
 
-allows the user to specify the number of arguments via `nargs`.
+            allows the user to specify the number of arguments via `nargs`.
 
-`lambda` also has the shorthand `λ` for those lovers of Unicode.
+            `lambda` also has the shorthand `λ` for those lovers of Unicode.
 """, lambda)
 
 end # module

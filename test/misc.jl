@@ -28,3 +28,11 @@ end
     slot!(p, :m)
     get_slot(p, :m)
 end
+
+@testset "code_inferred -- misc." begin
+    b = CodeInfoTools.Builder(g, Int)
+    identity(b)
+    l = λ(finish(b), 1)
+    src = code_inferred(l, Int)
+    display(src)
+end

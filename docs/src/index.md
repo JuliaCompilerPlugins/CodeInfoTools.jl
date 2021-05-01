@@ -12,6 +12,7 @@ CurrentModule = CodeInfoTools
 code_info
 walk
 get_slot
+code_inferred
 ```
 
 ## Working with `Core.CodeInfo`
