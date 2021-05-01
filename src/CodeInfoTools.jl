@@ -529,7 +529,7 @@ lambda(m::Module, src::Core.CodeInfo, nargs::Int)
 
 allows the user to specify the number of arguments via `nargs`.
 
-`lambda  also has the shorthand `λ` for those lovers of Unicode.
+`lambda` also has the shorthand `λ` for those lovers of Unicode.
 """, lambda)
 
 end # module
