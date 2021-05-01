@@ -8,7 +8,7 @@ import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, 
 ##### Exports
 #####
 
-export code_info, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, renumber, verify, finish, unwrap, lambda, λ
+export code_info, walk, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, renumber, verify, finish, unwrap, lambda, λ
 
 #####
 ##### Utilities

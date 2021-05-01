@@ -10,6 +10,7 @@ CurrentModule = CodeInfoTools
 
 ```@docs
 code_info
+walk
 ```
 
 ## Working with `CodeInfo`
