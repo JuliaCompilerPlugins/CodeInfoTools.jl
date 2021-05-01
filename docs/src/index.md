@@ -14,7 +14,7 @@ walk
 get_slot
 ```
 
-## Working with `CodeInfo`
+## Working with `Core.CodeInfo`
 
 ```@docs
 Variable
