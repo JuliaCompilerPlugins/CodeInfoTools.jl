@@ -2,14 +2,13 @@ module CodeInfoTools
 
 using Core: CodeInfo 
 
-import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length, identity
-import Base: show
+import Base: iterate, push!, pushfirst!, insert!, delete!, getindex, lastindex, setindex!, display, +, length, identity, isempty, show
 
 #####
 ##### Exports
 #####
 
-export var, Variable, Canvas, Builder, renumber, code_info, finish, get_slot, unwrap, Statement, stmt
+export code_info, var, Variable, slot, get_slot, Statement, stmt, Canvas, Builder, slot!, renumber, verify, finish, unwrap, lambda, λ
 
 #####
 ##### Utilities
@@ -47,10 +46,12 @@ end
 Return lowered code for function `f` with tuple type `tt`. Equivalent to `InteractiveUtils.@code_lowered` -- but a function call and requires a tuple type `tt` as input.
 """, code_info)
 
+slot(ind::Int) = Core.SlotNumber(ind)
+
 function get_slot(ci::CodeInfo, s::Symbol)
     ind = findfirst(el -> el == s, ci.slotnames)
-    ind == nothing && return 
-    return Core.Compiler.SlotNumber(ind)
+    ind === nothing && return 
+    return slot(ind)
 end
 
 @doc(
@@ -62,6 +63,8 @@ Get the `Core.Compiler.SlotNumber` associated with the `s::Symbol` in `ci::CodeI
 
 walk(fn, x) = fn(x)
 walk(fn, x::Variable) = fn(x)
+walk(fn, x::Core.SlotNumber) = fn(x)
+walk(fn, x::Core.NewvarNode) = Core.NewvarNode(walk(fn, x.slot))
 walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
 walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
 walk(fn, x::Core.GotoIfNot) = Core.GotoIfNot(walk(fn, x.cond), walk(fn, x.dest))
@@ -114,6 +117,8 @@ struct Canvas
     codelocs::Vector{Int32}
 end
 Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[])
+
+Base.isempty(canv::Canvas) = Base.isempty(canv.defs)
 
 @doc(
 """
@@ -196,7 +201,7 @@ function insert!(c::Canvas, idx::Int, x)
 end
 insert!(c::Canvas, v::Variable, x) = insert!(c, v.id, x)
 
-pushfirst!(c::Canvas, x) = insert!(c, 1, x)
+pushfirst!(c::Canvas, x) = isempty(c.defs) ? push!(c, x) : insert!(c, 1, x)
 
 setindex!(c::Canvas, x::Statement, v::Int) = setindex!(c.code, x, v)
 setindex!(c::Canvas, x, v::Int) = setindex!(c, Statement(x), v)
@@ -217,7 +222,7 @@ function renumber(c::Canvas)
     ind = first.(s)
     swap = walk(k -> _get(d, k, k), c.code)
     return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)], 
-        getindex(swap, ind), getindex(c.codelocs, ind))
+                  getindex(swap, ind), getindex(c.codelocs, ind))
 end
 
 #####
@@ -271,12 +276,13 @@ mutable struct Builder
     from::CodeInfo
     to::Canvas
     map::Dict{Any, Any}
+    slots::Vector{Symbol}
     var::Int
 end
 
 function Builder(ci::CodeInfo)
     canv = Canvas()
-    p = Builder(ci, canv, Dict(), 0)
+    p = Builder(ci, canv, Dict(), Symbol[], 0)
     return p
 end
 
@@ -287,7 +293,12 @@ end
 A wrapper around a [`Canvas`](@ref) instance. Call [`finish`](@ref) when done to produce a new `CodeInfo` instance.
 """, Builder)
 
-get_slot(b::Builder, s::Symbol) = get_slot(b.from, s)
+function get_slot(b::Builder, s::Symbol)
+    s = get_slot(b.from, s)
+    s === nothing || return s
+    ind = findfirst(k -> k == s, b.slots)
+    return ind === nothing ? s : slot(ind)
+end
 
 # This is used to handle NewVariable instances.
 substitute!(b::Builder, x, y) = (b.map[x] = y; x)
@@ -369,29 +380,45 @@ function Base.delete!(b::Builder, v::Union{Variable, NewVariable})
     delete!(b.to, v′)
 end
 
-function validate_code(src::Core.CodeInfo)
+function slot!(b::Builder, name::Symbol)
+    @assert(get_slot(b, name) === nothing)
+    push!(b.slots, name)
+    ind = length(b.from.slotnames) + length(b.slots)
+    s = slot(ind)
+    pushfirst!(b, Core.NewvarNode(s))
+    return s
+end
+
+function verify(src::Core.CodeInfo)
     Core.Compiler.validate_code(src)
     @assert(!isempty(src.linetable))
 end
 
 @doc(
 """
-    validate_code(src::Core.CodeInfo)
+    verify(src::Core.CodeInfo)
 
-Validate `Core.CodeInfo` instances using `Core.Compiler.validate_code`. Also explicitly checks that the linetable in `src::Core.CodeInfo` is not empty.
-""", validate_code)
+Validate `Core.CodeInfo` instances using `Core.Compiler.verify`. Also explicitly checks that the linetable in `src::Core.CodeInfo` is not empty.
+""", verify)
+
+function check_empty_canvas(b::Builder)
+    isempty(b.to) && error("Builder has empty `c::Canvas` instance. This means you haven't added anything, or you've accidentally wiped the :defs subfield of `c::Canvas`.")
+end
 
 function finish(b::Builder; validate = true)
+    check_empty_canvas(b)
     new_ci = copy(b.from)
     c = renumber(b.to)
     new_ci.code = map(unwrap, c.code)
     new_ci.codelocs = c.codelocs
-    new_ci.slotnames = b.from.slotnames
-    new_ci.slotflags = [0x00 for _ in new_ci.slotnames]
+    new_ci.slotnames = copy(b.from.slotnames)
+    append!(new_ci.slotnames, b.slots)
+    new_ci.slotflags = copy(b.from.slotflags)
+    append!(new_ci.slotflags, [0x18 for _ in b.slots])
     new_ci.inferred = false
     new_ci.inlineable = b.from.inlineable
     new_ci.ssavaluetypes = length(b.to)
-    validate && validate_code(new_ci)
+    validate && verify(new_ci)
     return new_ci
 end
 
@@ -408,5 +435,58 @@ function Base.identity(b::Builder)
     end
     return b
 end
+
+#####
+##### Evaluation
+#####
+
+function lambda(m::Module, src::Core.CodeInfo)
+    verify(src)
+    inds = findall(==(0x00), src.slotflags)
+    @assert(inds !== nothing)
+    args = getindex(src.slotnames, inds)[2 : end]
+    @eval m @generated function $(gensym())($(args...))
+        return $src
+    end
+end
+
+function lambda(m::Module, src::Core.CodeInfo, nargs::Int)
+    verify(src)
+    @debug "Warning: using explicit `nargs` to construct the generated function. If this number does not match the correct number of arguments in the :slotflags field of `src::Core.CodeInfo`, this can lead to segfaults and other bad behavior."
+    args = src.slotnames[2 : 1 + nargs]
+    @eval m @generated function $(gensym())($(args...))
+        return $src
+    end
+end
+
+lambda(src::Core.CodeInfo) = lambda(Main, src)
+lambda(src::Core.CodeInfo, nargs::Int) = lambda(Main, src, nargs)
+
+const λ = lambda
+
+@doc(
+"""
+    lambda(m::Module, src::Core.CodeInfo)
+    lambda(m::Module, src::Core.CodeInfo, nargs::Int)
+    const λ = lambda
+
+Create an anonymous `@generated` function from a piece of `src::Core.CodeInfo`. The `src::Core.CodeInfo` is checked for consistency by [`verify`](@ref).
+
+`lambda` has a 2 different forms. The first form, given by signature:
+
+```julia
+lambda(m::Module, src::Core.CodeInfo)
+```
+
+tries to detect the correct number of arguments automatically. This may fail (for any number of internal reasons). Expecting this, the second form, given by signature:
+
+```julia
+lambda(m::Module, src::Core.CodeInfo, nargs::Int)
+```
+
+allows the user to specify the number of arguments via `nargs`.
+
+**Note**: it is relatively difficult to prevent the user from shooting themselves in the foot with this sort of functionality. Please be aware of this. Segfaults should be cautiously expected.
+""", lambda)
 
 end # module

@@ -6,13 +6,26 @@ Below is the API documentation for [CodeInfoTools.jl](https://github.com/JuliaCo
 CurrentModule = CodeInfoTools
 ```
 
+## Utilities
+
 ```@docs
 code_info
+```
+
+## Working with `CodeInfo`
+
+```@docs
 Variable
 Statement
 Canvas
 Builder
 iterate
-validate_code
+verify
 finish
+```
+
+## Evaluation
+
+```@docs
+lambda
 ```
