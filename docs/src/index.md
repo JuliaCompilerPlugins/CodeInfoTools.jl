@@ -11,6 +11,7 @@ CurrentModule = CodeInfoTools
 ```@docs
 code_info
 walk
+get_slot
 ```
 
 ## Working with `CodeInfo`
@@ -20,6 +21,7 @@ Variable
 Statement
 Canvas
 Builder
+slot!
 iterate
 verify
 finish

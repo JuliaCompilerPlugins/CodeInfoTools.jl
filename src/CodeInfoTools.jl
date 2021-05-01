@@ -389,6 +389,15 @@ function slot!(b::Builder, name::Symbol)
     return s
 end
 
+@doc(
+"""
+    slot!(b::Builder, name::Symbol)::Core.SlotNumber
+
+Add a new `Core.SlotNumber` with associated `name::Symbol` to the in-progress `Core.CodeInfo` on the `c::Canvas` inside `b::Builder`. Also performs a `pushfirst!` with a `Core.NewvarNode` for consistency in the in-progress `Core.CodeInfo`.
+
+`name::Symbol` must not already be associated with a `Core.SlotNumber`.
+""", slot!)
+
 function verify(src::Core.CodeInfo)
     Core.Compiler.validate_code(src)
     @assert(!isempty(src.linetable))
