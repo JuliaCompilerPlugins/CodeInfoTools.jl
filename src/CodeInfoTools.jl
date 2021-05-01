@@ -369,7 +369,19 @@ function Base.delete!(b::Builder, v::Union{Variable, NewVariable})
     delete!(b.to, v′)
 end
 
-function finish(b::Builder)
+function validate_code(src::Core.CodeInfo)
+    Core.Compiler.validate_code(src)
+    @assert(!isempty(src.linetable))
+end
+
+@doc(
+"""
+    validate_code(src::Core.CodeInfo)
+
+Validate `Core.CodeInfo` instances using `Core.Compiler.validate_code`. Also explicitly checks that the linetable in `src::Core.CodeInfo` is not empty.
+""", validate_code)
+
+function finish(b::Builder; validate = true)
     new_ci = copy(b.from)
     c = renumber(b.to)
     new_ci.code = map(unwrap, c.code)
@@ -379,6 +391,7 @@ function finish(b::Builder)
     new_ci.inferred = false
     new_ci.inlineable = b.from.inlineable
     new_ci.ssavaluetypes = length(b.to)
+    validate && validate_code(new_ci)
     return new_ci
 end
 

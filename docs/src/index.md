@@ -13,5 +13,6 @@ Statement
 Canvas
 Builder
 iterate
+validate_code
 finish
 ```
