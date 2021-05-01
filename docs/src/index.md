@@ -22,6 +22,7 @@ Statement
 Canvas
 Builder
 slot!
+return!
 iterate
 verify
 finish
