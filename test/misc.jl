@@ -36,3 +36,32 @@ end
     src = code_inferred(l, Int)
     display(src)
 end
+
+@testset "Coverage removal -- misc." begin
+    b = CodeInfoTools.Builder()
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:call, :foo, 2))
+    v = push!(b, Expr(:call, :measure, 2))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:code_coverage_effect))
+    k = push!(b, Expr(:call, :measure_cmp, v, 1))
+    push!(b, Core.GotoIfNot(k, 14))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:code_coverage_effect))
+    push!(b, Expr(:call, :foo, 2))
+    push!(b, Expr(:code_coverage_effect))
+    return!(b, nothing)
+    start = finish(b)
+    display(start)
+    new = CodeInfoTools.Builder(start)
+    for (v, st) in new
+        if st isa Expr && st.head == :code_coverage_effect
+            delete!(new, v)
+        end
+    end
+    src = finish(new)
+    display(src)
+end

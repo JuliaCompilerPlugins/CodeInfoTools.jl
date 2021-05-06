@@ -96,19 +96,20 @@ end
 Get the `Core.Compiler.SlotNumber` associated with the `s::Symbol` in `ci::CodeInfo`. If there is no associated `Core.Compiler.SlotNumber`, returns `nothing`.
 """, get_slot)
 
-walk(fn, x) = fn(x)
-walk(fn, x::Variable) = fn(x)
-walk(fn, x::Core.SlotNumber) = fn(x)
-walk(fn, x::Core.NewvarNode) = Core.NewvarNode(walk(fn, x.slot))
-walk(fn, x::Core.ReturnNode) = Core.ReturnNode(walk(fn, x.val))
-walk(fn, x::Core.GotoNode) = Core.GotoNode(walk(fn, x.label))
-walk(fn, x::Core.GotoIfNot) = Core.GotoIfNot(walk(fn, x.cond), walk(fn, x.dest))
-walk(fn, x::Expr) = Expr(x.head, map(a -> walk(fn, a), x.args)...)
-function walk(fn, x::Vector)
+walk(fn, x, guard) = fn(x)
+walk(fn, x::Variable, guard) = fn(x)
+walk(fn, x::Core.SlotNumber, guard) = fn(x)
+walk(fn, x::Core.NewvarNode, guard) = Core.NewvarNode(walk(fn, x.slot, guard))
+walk(fn, x::Core.ReturnNode, guard) = Core.ReturnNode(walk(fn, x.val, guard))
+walk(fn, x::Core.GotoNode, guard) = Core.GotoNode(walk(fn, x.label, guard))
+walk(fn, x::Core.GotoIfNot, guard) = Core.GotoIfNot(walk(fn, x.cond, guard), walk(fn, x.dest, guard))
+walk(fn, x::Expr, guard) = Expr(x.head, map(a -> walk(fn, a, guard), x.args)...)
+function walk(fn, x::Vector, guard)
     map(x) do el
-        walk(fn, el)
+        walk(fn, el, guard)
     end
 end
+walk(fn, x) = walk(fn, x, Val(:no_catch))
 
 @doc(
 """
@@ -130,7 +131,7 @@ struct Statement{T}
 end
 Statement(node::T) where T = Statement(node, Union{})
 unwrap(stmt::Statement) = stmt.node
-walk(fn, stmt::Statement{T}) where T = Statement(walk(fn, stmt.node), stmt.type)
+walk(fn, stmt::Statement{T}, guard) where T = Statement(walk(fn, stmt.node, guard), stmt.type)
 
 const stmt = Statement
 
@@ -245,17 +246,49 @@ setindex!(c::Canvas, x, v::Variable) = setindex!(c, x, v.id)
 function delete!(c::Canvas, idx::Int)
     c.code[idx] = nothing
     c.defs[idx] = (idx, -1)
+    return nothing
 end
 delete!(c::Canvas, v::Variable) = delete!(c, v.id)
 
 _get(d::Dict, c, k) = c
 _get(d::Dict, c::Variable, k) = haskey(d, c.id) ? Variable(getindex(d, c.id)) : nothing
+function _get(d::Dict, c::Core.GotoIfNot, k)
+    v = c.dest
+    if haskey(d, v)
+        nv = getindex(d, v)
+    else
+        nv = findfirst(l -> l > v, d)
+        if nv === nothing
+            nv = maximum(d)[1]
+        end
+        nv = getindex(d, nv)
+    end
+    c = _get(d, c.cond, c.cond)
+    return Core.GotoIfNot(c, nv)
+end
+function _get(d::Dict, c::Core.GotoNode, k)
+    v = c.label
+    if haskey(d, v)
+        nv = getindex(d, v)
+    else
+        nv = findfirst(l -> l > v, d)
+        if nv === nothing
+            nv = maximum(d)[1]
+        end
+        nv = getindex(d, nv)
+    end
+    return Core.GotoNode(nv)
+end
+
+# Override for renumber.
+walk(fn, c::Core.GotoIfNot, ::Val{:catch_jumps}) = fn(c)
+walk(fn, c::Core.GotoNode, ::Val{:catch_jumps}) = fn(c)
 
 function renumber(c::Canvas)
     s = sort(filter(v -> v[2] > 0, c.defs); by = x -> x[2])
     d = Dict((s[i][1], i) for  i in 1 : length(s))
     ind = first.(s)
-    swap = walk(k -> _get(d, k, k), c.code)
+    swap = walk(k -> _get(d, k, k), c.code, Val(:catch_jumps))
     return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)], 
                   getindex(swap, ind), getindex(c.codelocs, ind))
 end
@@ -424,7 +457,7 @@ end
 
 function Base.delete!(b::Builder, v::Union{Variable, NewVariable})
     v′ = substitute(b, v)
-    delete!(b.to, v′)
+    substitute!(b, v′, delete!(b.to, v′))
 end
 
 function slot!(b::Builder, name::Symbol; arg = false)
@@ -445,6 +478,7 @@ Add a new `Core.SlotNumber` with associated `name::Symbol` to the in-progress `C
 `name::Symbol` must not already be associated with a `Core.SlotNumber`.
 """, slot!)
 
+return!(b::Builder, v) = push!(b, Core.ReturnNode(v))
 return!(b::Builder, v::Variable) = push!(b, Core.ReturnNode(v))
 return!(b::Builder, v::NewVariable) = push!(b, Core.ReturnNode(v))
 
