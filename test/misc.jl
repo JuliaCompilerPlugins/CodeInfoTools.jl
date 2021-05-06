@@ -53,6 +53,7 @@ end
     push!(b, Expr(:code_coverage_effect))
     push!(b, Expr(:call, :foo, 2))
     push!(b, Expr(:code_coverage_effect))
+    push!(b, Core.GotoNode(14))
     return!(b, nothing)
     start = finish(b)
     display(start)
