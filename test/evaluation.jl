@@ -48,8 +48,17 @@ end
 rosenbrock(x, y, a, b) = (a - x)^2 + b * (y - x^2)^2
 
 @testset "Evaluation with nargs - slots = (#self, :x, :y, :a, :b)" begin
-    b = Builder(code_info(rosenbrock, Float64, Float64, 
+    b = Builder(code_info(rosenbrock, Float64, Float64,
                           Float64, Float64))
+    identity(b)
+    fn = λ(finish(b), 4)
+    @test rosenbrock(1.0, 1.0, 1.0, 1.0) == fn(1.0, 1.0, 1.0, 1.0)
+end
+
+@testset "Evaluation typed with nargs - slots = (#self, :x, :y, :a, :b)" begin
+    _code_info = code_typed(rosenbrock, Tuple{Float64, Float64, Float64, Float64},
+                            optimize=false)[1].first
+    b = Builder(_code_info)
     identity(b)
     fn = λ(finish(b), 4)
     @test rosenbrock(1.0, 1.0, 1.0, 1.0) == fn(1.0, 1.0, 1.0, 1.0)
