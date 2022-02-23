@@ -558,7 +558,11 @@ function code_inferred(mi::Core.Compiler.MethodInstance;
     src.inferred && return src
     Core.Compiler.validate_code_in_debug_mode(result.linfo, 
                                               src, "lowered")
-    frame = Core.Compiler.InferenceState(result, src, false, interp)
+    frame = @static if VERSION < v"1.8.0-DEV.472"
+        Core.Compiler.InferenceState(result, src, false, interp)
+    else
+        Core.Compiler.InferenceState(result, src, :no, interp)
+    end
     frame === nothing && return nothing
     if Core.Compiler.typeinf(interp, frame)
         opt_params = Core.Compiler.OptimizationParams(interp)
