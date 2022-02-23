@@ -558,7 +558,7 @@ function code_inferred(mi::Core.Compiler.MethodInstance;
     src.inferred && return src
     Core.Compiler.validate_code_in_debug_mode(result.linfo, 
                                               src, "lowered")
-    frame = @static if VERSION.major == 1 && VERSION.minor < 8
+    frame = @static if VERSION < v"1.8"
         Core.Compiler.InferenceState(result, src, false, interp)
     else
         Core.Compiler.InferenceState(result, src, :no, interp)
