@@ -63,13 +63,13 @@ Alias for `Core.SSAValue` -- represents a primitive register in lowered code. Se
 Base.:(+)(v::Variable, id::Int) = Variable(v.id + id)
 Base.:(+)(id::Int, v::Variable) = Variable(v.id + id)
 
-function code_info(f::Function, tt::Type{T}; generated=true, debuginfo=:default) where T <: Tuple
+function code_info(f, tt::Type{T}; generated=true, debuginfo=:default) where T <: Tuple
     ir = code_lowered(f, tt; generated = generated, debuginfo = :default)
     isempty(ir) && return nothing
     return ir[1]
 end
 
-function code_info(f::Function, t::Type...; generated = true, debuginfo = :default)
+function code_info(f, t::Type...; generated = true, debuginfo = :default)
     return code_info(f, Tuple{t...}; generated = generated, debuginfo = debuginfo)
 end
 
