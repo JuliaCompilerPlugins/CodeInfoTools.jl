@@ -2,10 +2,10 @@
 
 | **Build Status**                                       | **Coverage**                    | **Documentation** |
 |:------------------------------------------------------:|:-------------------------------:|:-----------------:|
-| [![][gha-1.6-img]][gha-url] [![][gha-nightly-img]][gha-url] | [![][codecov-img]][codecov-url] | [![][dev-docs-img]][dev-docs-url] |
+| [![][gha-ci-img]][gha-url] [![][gha-nightly-img]][gha-url] | [![][codecov-img]][codecov-url] | [![][dev-docs-img]][dev-docs-url] |
 
-[gha-1.6-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/julia-1.6/badge.svg
-[gha-nightly-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/julia-nightly/badge.svg
+[gha-ci-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/CI/badge.svg?branch=master
+[gha-nightly-img]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/workflows/JuliaNightly/badge.svg?branch=master
 [gha-url]: https://github.com/JuliaCompilerPlugins/CodeInfoTools.jl/actions
 [codecov-img]: https://codecov.io/github/JuliaCompilerPlugins/CodeInfoTools.jl/badge.svg?branch=master
 [codecov-url]: https://codecov.io/github/JuliaCompilerPlugins/CodeInfoTools.jl?branch=master

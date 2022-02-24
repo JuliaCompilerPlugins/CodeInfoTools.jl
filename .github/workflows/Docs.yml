@@ -1,9 +1,18 @@
-name: julia-1.6
+name: Docs
+
 on:
   push:
     branches:
       - master
+    tags: [v*]
   pull_request:
+
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
 jobs:
   docs:
     name: Documentation
@@ -13,12 +22,7 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.6'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: julia --project=docs docs/make.jl
+      - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
