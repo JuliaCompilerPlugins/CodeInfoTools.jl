@@ -16,8 +16,8 @@
 ] add CodeInfoTools
 ```
 
-> **Note**: A curated collection of tools for the discerning `Core.CodeInfo` connoisseur. 
-> 
+> **Note**: A curated collection of tools for the discerning `Core.CodeInfo` connoisseur.
+>
 > The architecture of this package is based closely on the [Pipe construct in IRTools.jl](https://github.com/FluxML/IRTools.jl/blob/1f3f43be654a41d0db154fd16b31fdf40f30748c/src/ir/ir.jl#L814-L973). Many (if not all) of the same idioms apply.
 
 ## Motivation

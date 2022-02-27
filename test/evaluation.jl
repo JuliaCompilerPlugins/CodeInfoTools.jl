@@ -48,7 +48,7 @@ end
 rosenbrock(x, y, a, b) = (a - x)^2 + b * (y - x^2)^2
 
 @testset "Evaluation with nargs - slots = (#self, :x, :y, :a, :b)" begin
-    b = Builder(code_info(rosenbrock, Float64, Float64, 
+    b = Builder(code_info(rosenbrock, Float64, Float64,
                           Float64, Float64))
     identity(b)
     fn = λ(finish(b), 4)

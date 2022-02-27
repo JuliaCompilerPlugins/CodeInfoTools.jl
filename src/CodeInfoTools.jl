@@ -1,23 +1,23 @@
 module CodeInfoTools
 
-using Core: CodeInfo 
+using Core: CodeInfo
 
-import Base: iterate, 
-             push!, 
-             pushfirst!, 
-             insert!, 
-             delete!, 
-             getindex, 
-             lastindex, 
-             setindex!, 
-             display, 
-             +, 
-             length, 
-             identity, 
-             isempty, 
+import Base: iterate,
+             push!,
+             pushfirst!,
+             insert!,
+             delete!,
+             getindex,
+             lastindex,
+             setindex!,
+             display,
+             +,
+             length,
+             identity,
+             isempty,
              show
 
-import Core.Compiler: AbstractInterpreter, 
+import Core.Compiler: AbstractInterpreter,
                       OptimizationState,
                       OptimizationParams
 
@@ -25,24 +25,24 @@ import Core.Compiler: AbstractInterpreter,
 ##### Exports
 #####
 
-export code_info, 
+export code_info,
        code_inferred,
-       walk, 
-       var, 
-       Variable, 
-       slot, 
-       get_slot, 
-       Statement, 
-       stmt, 
-       Canvas, 
-       Builder, 
-       slot!, 
-       return!, 
-       renumber, 
-       verify, 
-       finish, 
-       unwrap, 
-       lambda, 
+       walk,
+       var,
+       Variable,
+       slot,
+       get_slot,
+       Statement,
+       stmt,
+       Canvas,
+       Builder,
+       slot!,
+       return!,
+       renumber,
+       verify,
+       finish,
+       unwrap,
+       lambda,
        λ
 
 #####
@@ -85,7 +85,7 @@ slot(ind::Int) = Core.SlotNumber(ind)
 
 function get_slot(ci::CodeInfo, s::Symbol)
     ind = findfirst(el -> el == s, ci.slotnames)
-    ind === nothing && return 
+    ind === nothing && return
     return slot(ind)
 end
 
@@ -174,7 +174,7 @@ Properties to keep in mind:
 1. Insertion anywhere is slow.
 2. Pushing to beginning is slow.
 2. Pushing to end is fast.
-3. Deletion is fast. 
+3. Deletion is fast.
 4. Accessing elements is fast.
 5. Setting elements is fast.
 
@@ -289,7 +289,7 @@ function renumber(c::Canvas)
     d = Dict((s[i][1], i) for  i in 1 : length(s))
     ind = first.(s)
     swap = walk(k -> _get(d, k, k), c.code, Val(:catch_jumps))
-    return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)], 
+    return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)],
                   getindex(swap, ind), getindex(c.codelocs, ind))
 end
 
@@ -556,7 +556,7 @@ function code_inferred(mi::Core.Compiler.MethodInstance;
     src = Core.Compiler.retrieve_code_info(mi)
     src === nothing && return nothing
     src.inferred && return src
-    Core.Compiler.validate_code_in_debug_mode(result.linfo, 
+    Core.Compiler.validate_code_in_debug_mode(result.linfo,
                                               src, "lowered")
     frame = @static if VERSION < v"1.8.0-DEV.472"
         Core.Compiler.InferenceState(result, src, false, interp)
@@ -581,16 +581,16 @@ function code_inferred(@nospecialize(f), types::Type{T};
                  for mi in Base.method_instances(f, types, world)])
 end
 
-function code_inferred(@nospecialize(f), t::Type...; 
+function code_inferred(@nospecialize(f), t::Type...;
         world = Base.get_world_counter(),
         interp = Core.Compiler.NativeInterpreter(world))
-    return code_inferred(f, Tuple{t...}; 
+    return code_inferred(f, Tuple{t...};
                          world = world, interp = interp)
 end
 
 @doc(
 """
-    code_inferred(@nospecialize(f), t::Type...; 
+    code_inferred(@nospecialize(f), t::Type...;
             world = Base.get_world_counter(),
             interp = Core.Compiler.NativeInterpreter(world))
 
