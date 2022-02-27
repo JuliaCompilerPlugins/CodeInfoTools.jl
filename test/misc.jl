@@ -29,6 +29,14 @@ end
     get_slot(p, :m)
 end
 
+@testset "code_info on constructor -- misc." begin
+    struct T
+        i::Int
+    end
+    ir = code_info(T, Int)
+    @test Meta.isexpr(ir.code[1], :new)
+end
+
 @testset "code_inferred -- misc." begin
     b = CodeInfoTools.Builder(g, Int)
     identity(b)
