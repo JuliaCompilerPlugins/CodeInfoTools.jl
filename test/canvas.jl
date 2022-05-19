@@ -71,15 +71,15 @@ end
     pushfirst!(c, Expr(:call, +, 15, 15))
     pushfirst!(c, Expr(:call, +, 20, 20))
     pushfirst!(c, Expr(:call, +, 25, 25))
-    
+
     @test unwrap(getindex(c, 1)) == Expr(:call, +, 5, 5)
     setindex!(c, Expr(:call, *, 10, 10), 1)
     @test unwrap(getindex(c, 1)) == Expr(:call, *, 10, 10)
-    
+
     @test unwrap(getindex(c, 2)) == Expr(:call, +, 10, 10)
     setindex!(c, Expr(:call, *, 5, 5), 2)
     @test unwrap(getindex(c, 2)) == Expr(:call, *, 5, 5)
-    
+
     @test unwrap(getindex(c, 3)) == Expr(:call, +, 15, 15)
     setindex!(c, Expr(:call, *, 10, 10), 3)
     @test unwrap(getindex(c, 3)) == Expr(:call, *, 10, 10)

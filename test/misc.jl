@@ -9,7 +9,7 @@ end
 
 @testset "`walk` -- misc." begin
     v = Core.NewvarNode(Core.SlotNumber(5))
-    walk(x -> x isa Core.SlotNumber ? 
+    walk(x -> x isa Core.SlotNumber ?
          Core.SlotNumber(x.id + 1) : x, v)
 end
 
