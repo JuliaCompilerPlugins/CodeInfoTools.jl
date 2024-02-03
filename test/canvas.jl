@@ -13,6 +13,7 @@
     for i in 1 : 5
         @test c.defs[i] == (i, i)
         @test c.codelocs[i] == Int32(1)
+        @test c.ssaflags[i] == UInt32(0)
         @test unwrap(getindex(c, i)) == Expr(:call, rand)
     end
 end

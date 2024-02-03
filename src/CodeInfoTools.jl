@@ -151,8 +151,9 @@ struct Canvas
     defs::Vector{Tuple{Int, Int}}
     code::Vector{Any}
     codelocs::Vector{Int32}
+    ssaflags::Vector{UInt32}
 end
-Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[])
+Canvas() = Canvas(Tuple{Int, Int}[], [], Int32[], UInt32[])
 
 Base.isempty(canv::Canvas) = Base.isempty(canv.defs)
 
@@ -193,6 +194,7 @@ getindex(c::Canvas, v::Variable) = getindex(c, v.id)
 function push!(c::Canvas, stmt::Statement)
     push!(c.code, stmt)
     push!(c.codelocs, Int32(1))
+    push!(c.ssaflags, UInt32(0))
     l = length(c.defs) + 1
     push!(c.defs, (l, l))
     return Variable(length(c.defs))
@@ -201,6 +203,7 @@ end
 function push!(c::Canvas, node)
     push!(c.code, Statement(node))
     push!(c.codelocs, Int32(1))
+    push!(c.ssaflags, UInt32(0))
     l = length(c.defs) + 1
     push!(c.defs, (l, l))
     return Variable(length(c.defs))
@@ -211,6 +214,7 @@ function insert!(c::Canvas, idx::Int, x::Statement)
     @assert(ind > 0)
     push!(c.code, x)
     push!(c.codelocs, Int32(1))
+    push!(c.ssaflags, UInt32(0))
     for i in 1 : length(c.defs)
         r, k = c.defs[i]
         if k > 0 && k >= ind
@@ -290,7 +294,7 @@ function renumber(c::Canvas)
     ind = first.(s)
     swap = walk(k -> _get(d, k, k), c.code, Val(:catch_jumps))
     return Canvas(Tuple{Int, Int}[(i, i) for i in 1 : length(s)],
-                  getindex(swap, ind), getindex(c.codelocs, ind))
+                  getindex(swap, ind), getindex(c.codelocs, ind), getindex(c.ssaflags, ind))
 end
 
 #####
@@ -512,6 +516,7 @@ function finish(b::Builder; validate = true)
     c = renumber(b.to)
     new_ci.code = map(unwrap, c.code)
     new_ci.codelocs = c.codelocs
+    new_ci.ssaflags = c.ssaflags
     new_ci.slotnames = copy(b.from.slotnames)
     append!(new_ci.slotnames, b.slots)
     new_ci.slotflags = copy(b.from.slotflags)
